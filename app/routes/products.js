@@ -132,6 +132,16 @@ async function searchImages(query) {
   return ddgUrls;
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+//  Calcula status automaticamente a partir dos estoques
+//  0 = Igual, 1 = Divergente, 2 = Só Fiscal
+// ════════════════════════════════════════════════════════════════════════════
+function calcStatus(stockFiscal, stockMgmt) {
+  if (stockFiscal != null && stockMgmt == null) return 2; // só fiscal
+  if (stockFiscal == null && stockMgmt == null) return 0;
+  return (stockFiscal == stockMgmt) ? 0 : 1;
+}
+
 // ── GET /api/products ──────────────────────────────────────────────────────
 router.get('/', (req, res) => {
   const db = getDb();
@@ -140,18 +150,19 @@ router.get('/', (req, res) => {
 
   // Mapeamento seguro de colunas para evitar SQL injection
   const SORT_MAP = {
-    id:           'p.id',
-    name:         'p.name',
-    price_fiscal: 'p.price_fiscal',
-    price_mgmt:   'p.price_mgmt',
-    stock_fiscal: 'p.stock_fiscal',
-    stock_mgmt:   'p.stock_mgmt',
-    stock_real:   'p.stock_real',
+    id:              'p.id',
+    name:            'p.name',
+    price_fiscal:    'p.price_fiscal',
+    price_mgmt:      'p.price_mgmt',
+    stock_fiscal:    'p.stock_fiscal',
+    stock_mgmt:      'p.stock_mgmt',
+    snap_stock_mgmt: 'p.snap_stock_mgmt',
+    stock_real:      'p.stock_real',
     // % de diferença entre estoques: |fis - ger| / max(|fis|, |ger|, 1) * 100
-    diff_pct:     `(CASE WHEN MAX(ABS(COALESCE(p.stock_fiscal,0)), ABS(COALESCE(p.stock_mgmt,0))) = 0
+    diff_pct:     `(CASE WHEN MAX(ABS(COALESCE(p.stock_fiscal,0)), ABS(COALESCE(p.snap_stock_mgmt,0))) = 0
                     THEN 0
-                    ELSE ABS(COALESCE(p.stock_fiscal,0) - COALESCE(p.stock_mgmt,0)) * 100.0
-                         / MAX(ABS(COALESCE(p.stock_fiscal,0)), ABS(COALESCE(p.stock_mgmt,0)))
+                    ELSE ABS(COALESCE(p.stock_fiscal,0) - COALESCE(p.snap_stock_mgmt,0)) * 100.0
+                         / MAX(ABS(COALESCE(p.stock_fiscal,0)), ABS(COALESCE(p.snap_stock_mgmt,0)))
                     END)`,
     // % diferença real vs fiscal
     real_pct:     `(CASE WHEN MAX(ABS(COALESCE(p.stock_fiscal,0)), ABS(COALESCE(p.stock_real,0))) = 0
@@ -176,19 +187,22 @@ router.get('/', (req, res) => {
     params.push(parseInt(status));
   }
   // Filtro especial: apenas produtos com alerta fiscal ativo
-  const { fiscal_alert } = req.query;
+  const { fiscal_alert, disabled } = req.query;
   if (fiscal_alert === '1') { where += ' AND p.fiscal_alert = 1'; }
+  // Filtro de desativados: '0'=ativos, '1'=desativados, omitido=todos
+  if (disabled === '0') { where += ' AND COALESCE(p.is_disabled, 0) = 0'; }
+  else if (disabled === '1') { where += ' AND COALESCE(p.is_disabled, 0) = 1'; }
 
   const total = db.prepare(`SELECT COUNT(*) as n FROM products p WHERE ${where}`).get(...params).n;
   const rows  = db.prepare(
     `SELECT p.id, p.name, p.price_fiscal, p.price_mgmt,
-            p.stock_fiscal, p.stock_mgmt, p.stock_real,
-            p.fiscal_alert, p.status,
+            p.stock_fiscal, p.stock_mgmt, p.snap_stock_mgmt, p.stock_real,
+            p.fiscal_alert, p.status, COALESCE(p.is_disabled, 0) as is_disabled,
             pi.url as pinned_img,
-            (CASE WHEN MAX(ABS(COALESCE(p.stock_fiscal,0)), ABS(COALESCE(p.stock_mgmt,0))) = 0
+            (CASE WHEN MAX(ABS(COALESCE(p.stock_fiscal,0)), ABS(COALESCE(p.snap_stock_mgmt,0))) = 0
                   THEN 0
-                  ELSE ABS(COALESCE(p.stock_fiscal,0) - COALESCE(p.stock_mgmt,0)) * 100.0
-                       / MAX(ABS(COALESCE(p.stock_fiscal,0)), ABS(COALESCE(p.stock_mgmt,0)))
+                  ELSE ABS(COALESCE(p.stock_fiscal,0) - COALESCE(p.snap_stock_mgmt,0)) * 100.0
+                       / MAX(ABS(COALESCE(p.stock_fiscal,0)), ABS(COALESCE(p.snap_stock_mgmt,0)))
              END) AS diff_pct,
             (CASE WHEN p.stock_real IS NULL THEN NULL
                   WHEN MAX(ABS(COALESCE(p.stock_fiscal,0)), ABS(COALESCE(p.stock_real,0))) = 0 THEN 0
@@ -224,7 +238,8 @@ router.get('/action-stats', authenticate, (req, res) => {
   try {
     const db = getDb();
     const { alteracoes } = db.prepare(
-      `SELECT COUNT(DISTINCT product_id) as alteracoes FROM product_audit`
+      `SELECT COUNT(DISTINCT product_id) as alteracoes FROM product_audit
+       WHERE date(changed_at) = date('now')`
     ).get();
     const { desativar } = db.prepare(
       `SELECT COUNT(*) as desativar FROM products WHERE fiscal_alert = 1`
@@ -421,7 +436,19 @@ router.get('/:id/search-images', async (req, res) => {
   const product = db.prepare('SELECT id, name FROM products WHERE id = ?').get(req.params.id);
   if (!product) return res.status(404).json({ error: 'Produto não encontrado' });
 
-  // Se já tem imagens → retorna cache
+  // Fotos manuais têm prioridade — se existirem, não busca no Google
+  const manualCount = db.prepare(
+    'SELECT COUNT(*) as n FROM product_images WHERE product_id = ? AND is_manual = 1'
+  ).get(req.params.id).n;
+
+  if (manualCount > 0) {
+    const images = db.prepare(
+      'SELECT * FROM product_images WHERE product_id = ? ORDER BY is_pinned DESC, id ASC'
+    ).all(req.params.id);
+    return res.json({ source: 'manual', images });
+  }
+
+  // Se já tem imagens auto-buscadas → retorna cache
   const cached = db.prepare(
     'SELECT * FROM product_images WHERE product_id = ? ORDER BY is_pinned DESC, id ASC'
   ).all(req.params.id);
@@ -435,12 +462,12 @@ router.get('/:id/search-images', async (req, res) => {
 
   // Salva no banco — primeira como pinned
   const insertImg = db.prepare(
-    'INSERT OR IGNORE INTO product_images (product_id, url, is_pinned) VALUES (?, ?, ?)'
+    'INSERT OR IGNORE INTO product_images (product_id, url, is_pinned, is_manual) VALUES (?, ?, ?, 0)'
   );
   const saved = db.transaction((list) =>
     list.map((url, i) => {
       const r = insertImg.run(product.id, url, i === 0 ? 1 : 0);
-      return { id: r.lastInsertRowid, product_id: product.id, url, is_pinned: i === 0 ? 1 : 0 };
+      return { id: r.lastInsertRowid, product_id: product.id, url, is_pinned: i === 0 ? 1 : 0, is_manual: 0 };
     })
   )(urls);
 
@@ -450,17 +477,19 @@ router.get('/:id/search-images', async (req, res) => {
 // ── POST /api/products ─────────────────────────────────────────────────────
 router.post('/', requireAdmin, (req, res) => {
   const db = getDb();
-  const { id, name, price_fiscal, price_mgmt, stock_fiscal, stock_mgmt, stock_real, status } = req.body;
+  const { id, name, price_fiscal, price_mgmt, stock_fiscal, stock_mgmt, stock_real } = req.body;
   if (!id || !name) return res.status(400).json({ error: 'id e name são obrigatórios' });
 
   const existing = db.prepare('SELECT id FROM products WHERE id = ?').get(id);
   if (existing) return res.status(409).json({ error: 'Produto com este ID já existe' });
 
+  const autoStatus = calcStatus(stock_fiscal ?? null, stock_mgmt ?? null);
+
   db.prepare(`
     INSERT INTO products (id, name, price_fiscal, price_mgmt, stock_fiscal, stock_mgmt, stock_real, status)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(id, name, price_fiscal ?? null, price_mgmt ?? null,
-         stock_fiscal ?? null, stock_mgmt ?? null, stock_real ?? null, status ?? 0);
+         stock_fiscal ?? null, stock_mgmt ?? null, stock_real ?? null, autoStatus);
 
   res.status(201).json({ message: 'Produto criado', id });
 });
@@ -525,7 +554,7 @@ router.put('/:id', requireAdmin, (req, res) => {
 
   // Lê valores atuais ANTES de alterar para detectar mudanças
   const before = db.prepare(
-    'SELECT name, price_fiscal, price_mgmt, stock_fiscal, stock_mgmt, stock_real, status, fiscal_alert FROM products WHERE id = ?'
+    'SELECT name, price_fiscal, price_mgmt, stock_fiscal, stock_mgmt, snap_stock_mgmt, stock_real, status, fiscal_alert FROM products WHERE id = ?'
   ).get(req.params.id);
   if (!before) return res.status(404).json({ error: 'Produto não encontrado' });
 
@@ -547,7 +576,8 @@ router.put('/:id', requireAdmin, (req, res) => {
   const newStockMgmt   = rule.stockMgmt;
   const newStockReal   = realVal;
   const newFiscalAlert = rule.fiscalAlert;
-  const newStatus      = status != null ? parseInt(status) : before.status;
+  // Status compara fiscal (PDF) vs gerencial (PDF snapshot) — independente do stock_real
+  const newStatus      = calcStatus(newStockFiscal, before.snap_stock_mgmt);
 
   db.prepare(`
     UPDATE products SET
@@ -597,18 +627,23 @@ router.delete('/:id', requireAdmin, (req, res) => {
 // ── POST /api/products/:id/images ─────────────────────────────────────────
 router.post('/:id/images', authenticate, (req, res) => {
   const db = getDb();
-  const { url, is_pinned = 0 } = req.body;
+  const { url, is_pinned = 0, is_manual = 0 } = req.body;
   if (!url) return res.status(400).json({ error: 'URL é obrigatória' });
 
   const product = db.prepare('SELECT id FROM products WHERE id = ?').get(req.params.id);
   if (!product) return res.status(404).json({ error: 'Produto não encontrado' });
 
+  // Foto manual: remove imagens auto-buscadas anteriores para este produto
+  if (is_manual) {
+    db.prepare('DELETE FROM product_images WHERE product_id = ? AND is_manual = 0').run(req.params.id);
+  }
+
   if (is_pinned)
     db.prepare('UPDATE product_images SET is_pinned=0 WHERE product_id=?').run(req.params.id);
 
   const result = db.prepare(
-    'INSERT INTO product_images (product_id, url, is_pinned) VALUES (?, ?, ?)'
-  ).run(req.params.id, url, is_pinned ? 1 : 0);
+    'INSERT INTO product_images (product_id, url, is_pinned, is_manual) VALUES (?, ?, ?, ?)'
+  ).run(req.params.id, url, is_pinned ? 1 : 0, is_manual ? 1 : 0);
 
   res.status(201).json({ id: result.lastInsertRowid, message: 'Imagem salva' });
 });

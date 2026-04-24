@@ -6,6 +6,8 @@ SEED_PATH="./db_seed/gatopreto.db"
 LINK_PATH="./db/gatopreto.db"
 
 mkdir -p /data
+mkdir -p /data/uploads
+export UPLOAD_DIR=/data/uploads
 
 if [ ! -f "$VOLUME_DB" ]; then
   echo "DB not found — copying seed to volume..."

@@ -34,8 +34,10 @@ async function main() {
   }
 
   if (!fs.existsSync(HTML_PATH)) {
-    console.error(`❌ Arquivo não encontrado: ${HTML_PATH}`);
-    process.exit(1);
+    console.warn(`⚠️  Arquivo de catálogo não encontrado: ${HTML_PATH}`);
+    console.warn('   Pulando importação de produtos. O servidor iniciará sem produtos.');
+    console.log('\n✅ Seed concluído!');
+    return;
   }
 
   console.log('📂 Lendo HTML original...');

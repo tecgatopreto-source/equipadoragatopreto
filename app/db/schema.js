@@ -62,11 +62,43 @@ function initSchema(db) {
     );
   `);
 
+  // Documentos PDF enviados pelo admin
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS uploaded_documents (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      filename    TEXT    NOT NULL,
+      type        TEXT    NOT NULL,  -- 'fiscal' | 'gerencial'
+      size_bytes  INTEGER,
+      uploaded_by TEXT,
+      uploaded_at DATETIME DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS import_history (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      document_id      INTEGER REFERENCES uploaded_documents(id),
+      type             TEXT    NOT NULL,
+      total_products   INTEGER,
+      updated_products INTEGER,
+      skipped          INTEGER,
+      status           TEXT,    -- 'success' | 'partial' | 'error'
+      imported_at      DATETIME DEFAULT (datetime('now'))
+    );
+  `);
+
   // Migrações — adiciona colunas novas em bancos já existentes
   const migrations = [
-    'ALTER TABLE products ADD COLUMN stock_real   REAL',
-    'ALTER TABLE products ADD COLUMN fiscal_alert INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE products ADD COLUMN stock_real      REAL',
+    'ALTER TABLE products ADD COLUMN fiscal_alert    INTEGER NOT NULL DEFAULT 0',
     'ALTER TABLE product_audit ADD COLUMN fiscal_alert INTEGER NOT NULL DEFAULT 0',
+    // Snapshot dos PDFs: separado dos dados manuais do sistema
+    'ALTER TABLE products ADD COLUMN snap_price_mgmt REAL',
+    'ALTER TABLE products ADD COLUMN snap_stock_mgmt REAL',
+    'ALTER TABLE products ADD COLUMN snap_mgmt_at    DATETIME',
+    'ALTER TABLE products ADD COLUMN snap_fiscal_at  DATETIME',
+    // is_disabled: produto com prefixo D50 no PDF (desativado no sistema externo)
+    'ALTER TABLE products ADD COLUMN is_disabled     INTEGER NOT NULL DEFAULT 0',
+    // is_manual: imagem adicionada pelo usuário (não busca Google se existir)
+    'ALTER TABLE product_images ADD COLUMN is_manual INTEGER NOT NULL DEFAULT 0',
   ];
   for (const sql of migrations) {
     try { db.exec(sql); } catch (e) { /* coluna já existe */ }
