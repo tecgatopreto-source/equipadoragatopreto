@@ -9,7 +9,7 @@
 :root{
   --bg:#f5f5f5;--white:#fff;--surface:#fafaf8;
   --border:#e8e6e1;--border2:#d4d1cb;
-  --accent:#22c55e;
+  --accent:#61d330;
   --text:#1a1814;--text2:#3d3a35;
   --muted:#8a8680;--muted2:#b5b2ac;
   --green:#15803d;--red:#c8102e;--amber:#b5620a;
@@ -45,7 +45,7 @@ header{background:var(--white);border-bottom:1px solid var(--border);position:st
 .filters{display:flex;gap:.3rem;flex-wrap:wrap}
 .fb{padding:.38rem .8rem;border-radius:4px;border:1.5px solid var(--border2);background:transparent;color:var(--muted);font-family:'Inter',sans-serif;font-size:.7rem;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap;display:flex;align-items:center;gap:.32rem}
 .fb:hover{border-color:var(--text);color:var(--text)}
-.fb.active{background:var(--text);border-color:var(--text);color:var(--white)}
+.fb.active{background:var(--accent);border-color:var(--accent);color:#1a1814;font-weight:700}
 .fb-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
 .fd-all{background:var(--text2)}.fd-eq{background:var(--green)}.fd-diff{background:var(--red)}.fd-fi{background:var(--amber)}
 
@@ -199,12 +199,17 @@ header{background:var(--white);border-bottom:1px solid var(--border);position:st
       <button class="sw-clear" id="qc">×</button>
     </div>
     <div class="filters">
-      <button class="fb active" data-f="T"><span class="fb-dot fd-all"></span>Todos</button>
-      <button class="fb" data-f="0"><span class="fb-dot fd-eq"></span>Iguais</button>
-      <button class="fb" data-f="1"><span class="fb-dot fd-diff"></span>Divergentes</button>
-      <button class="fb" data-f="2"><span class="fb-dot fd-fi"></span>Só Fiscal</button>
-      <button class="fb" data-f="T" data-disabled="0" style="border-color:var(--green);color:var(--green)">Ativos</button>
-      <button class="fb" data-f="T" data-disabled="1" style="border-color:var(--muted);color:var(--muted)">Desativados</button>
+      <div id="cat-status-group" style="display:flex;gap:.3rem;flex-wrap:wrap">
+        <button class="fb active" data-f="T"><span class="fb-dot fd-all"></span>Todos</button>
+        <button class="fb" data-f="0"><span class="fb-dot fd-eq"></span>Iguais</button>
+        <button class="fb" data-f="1"><span class="fb-dot fd-diff"></span>Divergentes</button>
+        <button class="fb" data-f="2"><span class="fb-dot fd-fi"></span>Só Fiscal</button>
+      </div>
+      <div id="cat-disabled-group" style="display:flex;gap:.3rem;flex-wrap:wrap">
+        <button class="fb active" data-disabled="">Todos</button>
+        <button class="fb" data-disabled="0">Ativos</button>
+        <button class="fb" data-disabled="1">Desativados</button>
+      </div>
     </div>
   </div>
 </header>
@@ -314,6 +319,7 @@ let currentQ        = localStorage.getItem('gp_catalog_q')         || '';
 let modalProductId  = null;
 let modalImages     = [];   // [{id, url, is_pinned}, ...]
 let modalImgIndex   = 0;    // index da foto exibida
+let _modalGen       = 0;    // geração do modal — evita race condition entre aberturas
 
 // ── Fetch helpers ──────────────────────────────────────────────────────────
 async function apiFetch(path, opts = {}) {
@@ -423,8 +429,14 @@ function setBadge(text, cls) {
 function showMainImg(index) {
   if (!modalImages.length) return;
   const img = modalImages[index];
-  document.getElementById('m-img').src = img.url;
-  document.getElementById('mp-img').classList.add('on');
+  const mpImg = document.getElementById('mp-img');
+  const mImg  = document.getElementById('m-img');
+  // Troca suave: apaga, troca src, acende
+  mpImg.classList.remove('on');
+  setTimeout(() => {
+    mImg.src = img.url;
+    mpImg.classList.add('on');
+  }, mpImg.classList.contains('on') ? 150 : 0);
 
   // Highlight thumb
   document.querySelectorAll('.thumb').forEach((t, i) => t.classList.toggle('sel', i === index));
@@ -477,6 +489,7 @@ function buildThumbs() {
 }
 
 async function openModal(id) {
+  const gen = ++_modalGen;   // cada abertura tem número único
   modalProductId = id;
   modalImages    = [];
   modalImgIndex  = 0;
@@ -521,6 +534,7 @@ async function openModal(id) {
 
   // Load images: se já tem no banco mostra imediatamente, senão busca Google
   if (p.images && p.images.length) {
+    if (gen !== _modalGen) return; // modal mais novo abriu — descarta
     modalImages = p.images;
     document.getElementById('ph-loader').classList.add('off');
     setBadge('⚡ Cache', 'isb-db');
@@ -533,6 +547,7 @@ async function openModal(id) {
     setBadge('🔍 Buscando…', 'isb-searching');
     try {
       const result = await apiFetch('/api/products/' + id + '/search-images');
+      if (gen !== _modalGen) return; // modal mais novo abriu — descarta
       modalImages = result.images || [];
       document.getElementById('ph-loader').classList.add('off');
 
@@ -540,15 +555,14 @@ async function openModal(id) {
         setBadge('✓ Google Images', 'isb-google');
         buildThumbs();
         showMainImg(0);
-        // Atualiza card no grid com a imagem fixada
         updateCardImg(id, modalImages.find(i => i.is_pinned)?.url || modalImages[0]?.url);
       } else {
         setBadge('Sem fotos', 'isb-none');
         buildThumbs();
-        document.getElementById('ph-loader').classList.add('off');
       }
       document.getElementById('btn-refresh').style.display = '';
     } catch {
+      if (gen !== _modalGen) return;
       document.getElementById('ph-loader').classList.add('off');
       setBadge('Erro', 'isb-none');
     }
@@ -680,20 +694,22 @@ document.getElementById('qc').addEventListener('click', () => {
 });
 
 // ── Filters ────────────────────────────────────────────────────────────────
-document.querySelectorAll('.fb').forEach(b => {
+document.querySelectorAll('#cat-status-group .fb').forEach(b => {
   b.addEventListener('click', () => {
-    document.querySelectorAll('.fb').forEach(x => x.classList.remove('active'));
+    currentFilter = b.dataset.f;
+    localStorage.setItem('gp_catalog_filter', currentFilter);
+    document.querySelectorAll('#cat-status-group .fb').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
-    // Botões de status (data-f) e desativados (data-disabled) separados
-    if (b.dataset.disabled !== undefined) {
-      currentDisabled = b.dataset.disabled;
-      localStorage.setItem('gp_catalog_disabled', currentDisabled);
-    } else {
-      currentFilter = b.dataset.f;
-      currentDisabled = '';
-      localStorage.setItem('gp_catalog_filter', currentFilter);
-      localStorage.removeItem('gp_catalog_disabled');
-    }
+    fetchProducts(1, true);
+  });
+});
+
+document.querySelectorAll('#cat-disabled-group .fb').forEach(b => {
+  b.addEventListener('click', () => {
+    currentDisabled = b.dataset.disabled;
+    localStorage.setItem('gp_catalog_disabled', currentDisabled);
+    document.querySelectorAll('#cat-disabled-group .fb').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
     fetchProducts(1, true);
   });
 });
@@ -720,14 +736,11 @@ if (currentQ) {
   document.getElementById('q').value = currentQ;
   document.getElementById('qc').style.display = '';
 }
-// Restaura botão de filtro ativo
-document.querySelectorAll('.fb').forEach(b => {
-  const isDisabledBtn = b.dataset.disabled !== undefined;
-  const match = isDisabledBtn
-    ? b.dataset.disabled === currentDisabled
-    : !currentDisabled && b.dataset.f === currentFilter;
-  b.classList.toggle('active', match);
-});
+// Restaura botões de filtro ativos (dois grupos independentes)
+document.querySelectorAll('#cat-status-group .fb').forEach(b =>
+  b.classList.toggle('active', b.dataset.f === currentFilter));
+document.querySelectorAll('#cat-disabled-group .fb').forEach(b =>
+  b.classList.toggle('active', b.dataset.disabled === currentDisabled));
 renderAuthActions();
 fetchStats();
 fetchProducts(1, true);

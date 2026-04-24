@@ -8,7 +8,7 @@
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
 :root{
-  --accent:#22c55e;--bg:#f5f5f5;--white:#fff;--surface:#fafaf8;
+  --accent:#61d330;--bg:#f5f5f5;--white:#fff;--surface:#fafaf8;
   --border:#e8e6e1;--border2:#d4d1cb;
   --text:#1a1814;--text2:#3d3a35;--muted:#8a8680;--muted2:#b5b2ac;
   --green:#15803d;--red:#c8102e;--amber:#b5620a;
@@ -103,7 +103,7 @@ tr:hover td{background:var(--surface)}
 /* Modal / Drawer */
 .overlay{display:none;position:fixed;inset:0;background:rgba(20,18,14,.65);z-index:500;backdrop-filter:blur(6px)}
 .overlay.open{display:flex;align-items:center;justify-content:center;padding:1rem}
-.drawer{background:var(--white);border:1px solid var(--border);width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 16px 64px rgba(0,0,0,.2);animation:mIn .2s ease}
+.drawer{background:var(--white);border:1px solid var(--border);width:100%;max-width:580px;max-height:90vh;overflow-y:auto;box-shadow:0 16px 64px rgba(0,0,0,.2);animation:mIn .2s ease}
 @keyframes mIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 .drawer-header{padding:.9rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--white);z-index:5}
 .drawer-header h3{font-size:.88rem;font-weight:700}
@@ -115,6 +115,28 @@ tr:hover td{background:var(--surface)}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
 .drawer-footer{padding:.9rem 1.25rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:.5rem;position:sticky;bottom:0;background:var(--white)}
 .err-msg{color:var(--red);font-size:.75rem;margin-top:.5rem;display:none}
+
+/* Filter button groups */
+.filter-group{display:flex;gap:2px;flex-wrap:wrap}
+.filter-btn{padding:.35rem .8rem;border:1.5px solid var(--border2);border-radius:3px;background:var(--white);font-family:'Inter',sans-serif;font-size:.72rem;font-weight:500;cursor:pointer;color:var(--text2);transition:all .15s;white-space:nowrap}
+.filter-btn:hover{border-color:var(--accent);color:var(--accent)}
+.filter-btn.active{background:var(--accent);border-color:var(--accent);color:#1a1814;font-weight:700}
+
+/* Product images */
+.img-section{margin-top:1.25rem;border-top:1px solid var(--border);padding-top:1rem}
+.img-section-label{font-size:.63rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:.65rem;display:block}
+.img-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.45rem;margin-bottom:.65rem}
+.img-tile{position:relative;border-radius:4px;border:2px solid var(--border);overflow:hidden;aspect-ratio:1;cursor:pointer;transition:border-color .15s;background:var(--surface)}
+.img-tile:hover{border-color:var(--accent)}
+.img-tile.pinned{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.img-tile img{width:100%;height:100%;object-fit:cover;display:block}
+.img-tile-pin{position:absolute;top:3px;left:3px;background:var(--accent);color:#1a1814;font-size:.5rem;font-weight:700;padding:.12rem .35rem;border-radius:2px;letter-spacing:.04em}
+.img-tile-badge{position:absolute;bottom:3px;left:3px;background:rgba(124,58,237,.85);color:#fff;font-size:.5rem;font-weight:700;padding:.12rem .35rem;border-radius:2px}
+.img-tile-del{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:.55rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0}
+.img-tile-del:hover{background:var(--red)}
+.img-manual-row{display:flex;gap:.5rem;margin-top:.5rem}
+.img-manual-row input{flex:1;border:1.5px solid var(--border2);border-radius:4px;padding:.4rem .65rem;font-family:'Inter',sans-serif;font-size:.75rem;color:var(--text);outline:none;transition:border-color .2s}
+.img-manual-row input:focus{border-color:var(--accent)}
 
 /* Toast */
 .toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%) translateY(20px);background:var(--text);color:#fff;padding:.55rem 1.25rem;border-radius:4px;font-size:.74rem;font-weight:600;opacity:0;transition:all .25s;z-index:9999;pointer-events:none}
@@ -228,7 +250,7 @@ th.col-fiscal,th.col-mgmt,th.col-real{font-weight:800}
       <div class="summary-grid">
 
         <!-- Iguais -->
-        <div class="sum-card sum-green" onclick="navigate('products');document.getElementById('prod-status').value='0';loadProducts(1)">
+        <div class="sum-card sum-green" onclick="_applyStatusFilter('0');navigate('products')">
           <div class="sum-top">
             <div class="sum-icon-label">
               <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -242,7 +264,7 @@ th.col-fiscal,th.col-mgmt,th.col-real{font-weight:800}
         </div>
 
         <!-- Divergentes -->
-        <div class="sum-card sum-purple" onclick="navigate('products');document.getElementById('prod-status').value='1';loadProducts(1)">
+        <div class="sum-card sum-purple" onclick="_applyStatusFilter('1');navigate('products')">
           <div class="sum-top">
             <div class="sum-icon-label">
               <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -257,7 +279,7 @@ th.col-fiscal,th.col-mgmt,th.col-real{font-weight:800}
         </div>
 
         <!-- Só Fiscal -->
-        <div class="sum-card sum-blue" onclick="navigate('products');document.getElementById('prod-status').value='2';loadProducts(1)">
+        <div class="sum-card sum-blue" onclick="_applyStatusFilter('2');navigate('products')">
           <div class="sum-top">
             <div class="sum-icon-label">
               <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -272,7 +294,7 @@ th.col-fiscal,th.col-mgmt,th.col-real{font-weight:800}
         </div>
 
         <!-- Total -->
-        <div class="sum-card sum-red" onclick="navigate('products');document.getElementById('prod-status').value='T';loadProducts(1)">
+        <div class="sum-card sum-red" onclick="_applyStatusFilter('T');navigate('products')">
           <div class="sum-top">
             <div class="sum-icon-label">
               <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -298,17 +320,17 @@ th.col-fiscal,th.col-mgmt,th.col-real{font-weight:800}
       <div class="table-wrap">
         <div class="table-toolbar" style="flex-wrap:wrap;gap:.5rem">
           <input class="search-in" id="prod-q" placeholder="Buscar por nome ou código…" oninput="debSearch()" autocomplete="off">
-          <select class="search-in" style="max-width:160px" id="prod-status" onchange="loadProducts(1)">
-            <option value="T">Todos</option>
-            <option value="0">Iguais</option>
-            <option value="1">Divergentes</option>
-            <option value="2">Só Fiscal</option>
-          </select>
-          <select class="search-in" style="max-width:160px" id="prod-disabled" onchange="loadProducts(1)">
-            <option value="">Todos (Ativos/Desativ.)</option>
-            <option value="0">Apenas Ativos</option>
-            <option value="1">Apenas Desativados</option>
-          </select>
+          <div class="filter-group" id="status-group">
+            <button class="filter-btn active" data-val="T"  onclick="setStatusFilter('T')">Todos</button>
+            <button class="filter-btn"        data-val="0"  onclick="setStatusFilter('0')">Iguais</button>
+            <button class="filter-btn"        data-val="1"  onclick="setStatusFilter('1')">Divergentes</button>
+            <button class="filter-btn"        data-val="2"  onclick="setStatusFilter('2')">Só Fiscal</button>
+          </div>
+          <div class="filter-group" id="disabled-group">
+            <button class="filter-btn active" data-val=""  onclick="setDisabledFilter('')">Todos</button>
+            <button class="filter-btn"        data-val="0" onclick="setDisabledFilter('0')">Ativos</button>
+            <button class="filter-btn"        data-val="1" onclick="setDisabledFilter('1')">Desativados</button>
+          </div>
           <button class="btn-sm" id="btn-alert-filter" onclick="toggleAlertFilter()"
                   style="white-space:nowrap" title="Mostrar apenas produtos com alerta fiscal">
             ⚠️ Alerta Fiscal
@@ -324,7 +346,7 @@ th.col-fiscal,th.col-mgmt,th.col-real{font-weight:800}
                 <th class="sortable col-mgmt" data-col="price_mgmt">P. Gerencial</th>
                 <th class="sortable col-fiscal" data-col="stock_fiscal">Est. Fiscal</th>
                 <th class="sortable col-mgmt" data-col="snap_stock_mgmt">Est. Ger. PDF</th>
-                <th class="sortable" data-col="diff_pct">%&nbsp;Dif.</th>
+                <th class="sortable" data-col="diff_pct">Dif.</th>
                 <th class="sortable col-real" data-col="stock_real">Real</th>
                 <th class="sortable" data-col="real_pct">%&nbsp;Real</th>
                 <th>Alerta</th><th>Status</th><th>Ações</th>
@@ -552,6 +574,31 @@ th.col-fiscal,th.col-mgmt,th.col-real{font-weight:800}
         </div>
       </div>
       <div class="err-msg" id="form-err"></div>
+
+      <!-- Fotos — só visível ao editar produto existente -->
+      <div class="img-section" id="img-section" style="display:none">
+        <span class="img-section-label">Fotos do Produto</span>
+        <div class="img-grid" id="img-grid"><span style="font-size:.72rem;color:var(--muted)">Nenhuma foto ainda.</span></div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
+          <button class="btn-sm" onclick="searchProductImages()">🔍 Buscar Fotos</button>
+          <button class="btn-sm" style="color:var(--muted)" onclick="clearProductImages()">🗑 Limpar Tudo</button>
+        </div>
+        <div>
+          <div style="font-size:.63rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:.35rem">Enviar foto do produto (arquivo)</div>
+          <div class="img-manual-row">
+            <input type="file" id="f-img-file" accept="image/*" capture="environment"
+                   style="flex:1;font-size:.75rem;border:1.5px solid var(--border2);border-radius:4px;padding:.38rem .6rem;cursor:pointer">
+            <button class="btn-sm btn-primary" onclick="uploadImageFile()">Enviar</button>
+          </div>
+        </div>
+        <div style="margin-top:.65rem">
+          <div style="font-size:.63rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:.35rem">Ou adicionar por link (URL)</div>
+          <div class="img-manual-row">
+            <input type="url" id="f-img-url" placeholder="https://…">
+            <button class="btn-sm" onclick="addManualImage()">Adicionar</button>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="drawer-footer">
       <button class="btn-sm" onclick="closeProductForm()">Cancelar</button>
@@ -635,12 +682,14 @@ async function api(method, path, body) {
 
 // ── Stats ──────────────────────────────────────────────────────────────────
 async function loadStats() {
-  const s = await api('GET', '/products/stats');
-  document.getElementById('ds-total').textContent = s.total.toLocaleString('pt-BR');
-  document.getElementById('ds-iguais').textContent = s.iguais.toLocaleString('pt-BR');
-  document.getElementById('ds-div').textContent = s.divergentes.toLocaleString('pt-BR');
-  document.getElementById('ds-fi').textContent = s.so_fiscal.toLocaleString('pt-BR');
-  loadActionStats();
+  try {
+    const s = await api('GET', '/products/stats');
+    document.getElementById('ds-total').textContent  = (s.total        ?? 0).toLocaleString('pt-BR');
+    document.getElementById('ds-iguais').textContent = (s.iguais       ?? 0).toLocaleString('pt-BR');
+    document.getElementById('ds-div').textContent    = (s.divergentes  ?? 0).toLocaleString('pt-BR');
+    document.getElementById('ds-fi').textContent     = (s.so_fiscal    ?? 0).toLocaleString('pt-BR');
+    loadActionStats();
+  } catch { /* ignora — stats ficam em "—" */ }
 }
 
 async function loadActionStats() {
@@ -697,8 +746,43 @@ let debTimer;
 let sortCol = 'id';
 let sortDir = 'asc';
 let alertFilter = false;
+let statusFilter   = localStorage.getItem('gp_admin_status')   ?? 'T';
+let disabledFilter = localStorage.getItem('gp_admin_disabled') ?? '';
 
-function debSearch() { clearTimeout(debTimer); debTimer = setTimeout(() => loadProducts(1), 350); }
+function _applyStatusFilter(val) {
+  statusFilter = val;
+  localStorage.setItem('gp_admin_status', val);
+  document.querySelectorAll('#status-group .filter-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.val === val));
+}
+
+function setStatusFilter(val) {
+  _applyStatusFilter(val);
+  loadProducts(1);
+}
+
+function setDisabledFilter(val) {
+  disabledFilter = val;
+  localStorage.setItem('gp_admin_disabled', val);
+  document.querySelectorAll('#disabled-group .filter-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.val === val));
+  loadProducts(1);
+}
+
+function _restoreFilterButtons() {
+  document.querySelectorAll('#status-group .filter-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.val === statusFilter));
+  document.querySelectorAll('#disabled-group .filter-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.val === disabledFilter));
+}
+
+function debSearch() {
+  clearTimeout(debTimer);
+  debTimer = setTimeout(() => {
+    localStorage.setItem('gp_admin_q', document.getElementById('prod-q').value);
+    loadProducts(1);
+  }, 350);
+}
 
 function toggleAlertFilter() {
   alertFilter = !alertFilter;
@@ -721,6 +805,16 @@ function pctCell(pct) {
   const v = Math.round(pct);
   const cls = v === 0 ? 'pct-low' : v <= 30 ? 'pct-mid' : 'pct-high';
   return `<td class="pct-cell ${cls}">${v}%</td>`;
+}
+
+function diffCell(pct, a, b) {
+  if (a == null || b == null) return '<td class="pct-cell" style="color:var(--muted2)">—</td>';
+  const delta = a - b;
+  const pctV  = pct != null ? Math.round(pct) : null;
+  const cls   = delta === 0 ? 'pct-low' : Math.abs(pctV ?? 100) <= 30 ? 'pct-mid' : 'pct-high';
+  const sign  = delta > 0 ? '+' : '';
+  const pctTxt = pctV != null ? `<span style="font-size:.65rem;opacity:.75"> (${pctV}%)</span>` : '';
+  return `<td class="pct-cell ${cls}">${sign}${Number(delta).toLocaleString('pt-BR')}${pctTxt}</td>`;
 }
 
 // Clique nos cabeçalhos para ordenar
@@ -747,9 +841,9 @@ document.querySelector('th[data-col="id"]').classList.add('sort-asc');
 
 async function loadProducts(page) {
   prodPage = page;
-  const q        = document.getElementById('prod-q').value;
-  const status   = document.getElementById('prod-status').value;
-  const disabled = document.getElementById('prod-disabled').value;
+  const q             = document.getElementById('prod-q').value;
+  const status        = statusFilter;
+  const disabled      = disabledFilter;
   const alertParam    = alertFilter ? '&fiscal_alert=1' : '';
   const disabledParam = disabled !== '' ? `&disabled=${disabled}` : '';
   const data = await api('GET',
@@ -771,7 +865,7 @@ async function loadProducts(page) {
         <td class="col-mgmt">${fmt(p.price_mgmt)}</td>
         <td class="col-fiscal">${p.stock_fiscal != null ? Number(p.stock_fiscal).toLocaleString('pt-BR') : '—'}</td>
         <td class="col-mgmt">${p.snap_stock_mgmt != null ? Number(p.snap_stock_mgmt).toLocaleString('pt-BR') : '—'}</td>
-        ${pctCell(p.diff_pct)}
+        ${diffCell(p.diff_pct, p.stock_fiscal, p.snap_stock_mgmt)}
         <td class="col-real" style="font-weight:700">
           ${p.stock_real != null ? Number(p.stock_real).toLocaleString('pt-BR') : '<span style="color:var(--muted2)">·</span>'}
         </td>
@@ -818,6 +912,13 @@ function openProductForm(product) {
   if (product?.fiscal_alert) {
     document.getElementById('fiscal-warning-msg').classList.add('show');
   }
+  const imgSection = document.getElementById('img-section');
+  if (product) {
+    imgSection.style.display = 'block';
+    loadProductImages(product.id, product.images || []);
+  } else {
+    imgSection.style.display = 'none';
+  }
   document.getElementById('prod-overlay').classList.add('open');
 }
 
@@ -828,6 +929,91 @@ async function editProduct(id) {
 
 function closeProductForm() {
   document.getElementById('prod-overlay').classList.remove('open');
+  document.getElementById('f-img-url').value = '';
+  document.getElementById('f-img-file').value = '';
+}
+
+// ── Product images ─────────────────────────────────────────────────────────
+function _renderImgGrid(images) {
+  const grid = document.getElementById('img-grid');
+  if (!images.length) {
+    grid.innerHTML = '<span style="font-size:.72rem;color:var(--muted)">Nenhuma foto ainda. Clique em Buscar Fotos.</span>';
+    return;
+  }
+  grid.innerHTML = images.map(img => `
+    <div class="img-tile${img.is_pinned ? ' pinned' : ''}" title="${img.is_pinned ? 'Foto principal' : 'Clique para fixar como principal'}">
+      <img src="${img.url}" loading="lazy" onerror="this.parentElement.style.display='none'"
+           onclick="pinImage('${editingId}',${img.id})">
+      ${img.is_pinned ? '<span class="img-tile-pin">✓ Principal</span>' : ''}
+      ${img.is_manual ? '<span class="img-tile-badge">Manual</span>' : ''}
+      <button class="img-tile-del" onclick="event.stopPropagation();deleteImageById(${img.id})" title="Remover">✕</button>
+    </div>
+  `).join('');
+}
+
+function loadProductImages(productId, images) {
+  _renderImgGrid(images);
+}
+
+async function searchProductImages() {
+  if (!editingId) return;
+  const grid = document.getElementById('img-grid');
+  grid.innerHTML = '<span style="font-size:.72rem;color:var(--muted)">Buscando…</span>';
+  try {
+    const data = await api('GET', `/products/${editingId}/search-images`);
+    _renderImgGrid(data.images || []);
+  } catch (e) {
+    grid.innerHTML = `<span style="font-size:.72rem;color:var(--red)">${e.message}</span>`;
+  }
+}
+
+async function pinImage(productId, imgId) {
+  await api('PUT', `/products/${productId}/images/${imgId}/pin`);
+  const data = await api('GET', `/products/${productId}/search-images`);
+  _renderImgGrid(data.images || []);
+}
+
+async function deleteImageById(imgId) {
+  try {
+    await api('DELETE', `/products/${editingId}/images/${imgId}`);
+    const data = await api('GET', `/products/${editingId}/search-images`);
+    _renderImgGrid(data.images || []);
+  } catch(e) { showToast('Erro ao remover: ' + e.message); }
+}
+
+async function clearProductImages() {
+  if (!editingId) return;
+  if (!confirm('Remover todas as fotos deste produto?')) return;
+  await api('DELETE', `/products/${editingId}/images`);
+  _renderImgGrid([]);
+}
+
+async function uploadImageFile() {
+  const fileInput = document.getElementById('f-img-file');
+  const file = fileInput.files[0];
+  if (!file) { showToast('Selecione um arquivo primeiro.'); return; }
+  const formData = new FormData();
+  formData.append('image', file);
+  const res = await fetch(`/api/products/${editingId}/images/upload`, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + token },
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) { showToast('Erro: ' + (data.error || 'falha no upload')); return; }
+  fileInput.value = '';
+  const imgs = await api('GET', `/products/${editingId}/search-images`);
+  _renderImgGrid(imgs.images || []);
+  showToast('Foto adicionada!');
+}
+
+async function addManualImage() {
+  const url = document.getElementById('f-img-url').value.trim();
+  if (!url) return;
+  await api('POST', `/products/${editingId}/images`, { url, is_pinned: 1, is_manual: 1 });
+  document.getElementById('f-img-url').value = '';
+  const data = await api('GET', `/products/${editingId}/search-images`);
+  _renderImgGrid(data.images || []);
 }
 
 async function saveProduct() {
@@ -1324,9 +1510,7 @@ async function loadImportHistory() {
         <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);color:var(--muted);font-size:.72rem">${h.skipped ?? '—'}</td>
         <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);color:${statusColor};font-weight:700;font-size:.72rem">${statusLabel}</td>
         <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);color:var(--muted);font-size:.68rem">${h.filename || '—'}</td>
-        <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border)">
-          <button class="btn-sm" onclick="openRawText(${h.document_id})" title="Ver texto bruto extraído do PDF">🔍 Raw</button>
-        </td>
+        <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);color:var(--muted);font-size:.68rem">${h.document_id || '—'}</td>
       </tr>`;
     }).join('');
   } catch (err) {
@@ -1334,87 +1518,22 @@ async function loadImportHistory() {
   }
 }
 
-// ── Diagnóstico de texto bruto do PDF ─────────────────────────────────────
-async function openRawText(docId) {
-  if (!docId) { showToast('ID do documento não encontrado.'); return; }
-  document.getElementById('raw-overlay').classList.add('open');
-  document.getElementById('raw-body').innerHTML =
-    '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:.8rem">Carregando texto do PDF…</div>';
-  document.getElementById('raw-title').textContent = 'Texto Bruto — Documento #' + docId;
-  document.getElementById('raw-search').value = '';
-  document.getElementById('raw-stats').textContent = '';
-
-  try {
-    const data = await api('GET', `/documents/rawtext/${docId}?lines=500`);
-    _rawLines = data.lines;
-    document.getElementById('raw-stats').textContent =
-      `Total: ${data.totalLines} linhas — mostrando ${data.showing}`;
-    renderRawLines(_rawLines, '');
-  } catch (err) {
-    document.getElementById('raw-body').innerHTML =
-      `<div style="color:var(--red);padding:1rem;font-size:.8rem">❌ Erro: ${err.message}</div>`;
-  }
-}
-
-let _rawLines = [];
-
-function renderRawLines(lines, filter) {
-  const q = filter.toLowerCase();
-  const filtered = q ? lines.filter(l => l.raw.toLowerCase().includes(q)) : lines;
-  if (!filtered.length) {
-    document.getElementById('raw-body').innerHTML =
-      '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:.8rem">Nenhuma linha encontrada.</div>';
-    return;
-  }
-  document.getElementById('raw-body').innerHTML = filtered.map(l => {
-    const text = l.raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const highlighted = q
-      ? text.replace(new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi'),
-          m => `<mark style="background:#ffe066;border-radius:2px">${m}</mark>`)
-      : text;
-    return `<div style="display:flex;gap:.75rem;padding:.2rem .5rem;border-bottom:1px solid var(--border);font-family:monospace;font-size:.72rem;${l.hasNumbers?'':'color:var(--muted)'}">
-      <span style="min-width:2.5rem;color:var(--muted2);text-align:right;flex-shrink:0">${l.n}</span>
-      <span style="word-break:break-all">${highlighted || '<span style="color:var(--muted2)">(vazia)</span>'}</span>
-    </div>`;
-  }).join('');
-}
-
-document.getElementById('raw-search').addEventListener('input', e => {
-  renderRawLines(_rawLines, e.target.value);
-});
-document.getElementById('raw-overlay').addEventListener('click', e => {
-  if (e.target === document.getElementById('raw-overlay'))
-    document.getElementById('raw-overlay').classList.remove('open');
-});
 
 // ── Init ───────────────────────────────────────────────────────────────────
+// Restaura filtros salvos
+const _savedQ = localStorage.getItem('gp_admin_q') || '';
+if (_savedQ) document.getElementById('prod-q').value = _savedQ;
+_restoreFilterButtons();
+
 // Restaura a seção que estava aberta (hash routing)
 const initHash = location.hash.replace('#', '');
-navigate(VALID_PAGES.includes(initHash) ? initHash : 'dashboard');
-// Garante action-stats na sidebar sempre carregados
+const initPage = VALID_PAGES.includes(initHash) ? initHash : 'dashboard';
+navigate(initPage);
+// Carrega stats e action-stats explicitamente — navigate é síncrono, loadStats é async
+loadStats();
 loadActionStats();
 </script>
 
-<!-- Modal diagnóstico texto bruto -->
-<div class="overlay" id="raw-overlay">
-  <div class="drawer" style="max-width:820px;width:100%">
-    <div class="drawer-header">
-      <div>
-        <h3 id="raw-title">Texto Bruto do PDF</h3>
-        <span id="raw-stats" style="font-size:.65rem;color:var(--muted)"></span>
-      </div>
-      <div style="display:flex;gap:.5rem;align-items:center">
-        <input id="raw-search" class="search-in" placeholder="Filtrar linhas…"
-               style="max-width:220px;padding:.35rem .6rem;font-size:.75rem">
-        <button class="btn-sm" onclick="document.getElementById('raw-overlay').classList.remove('open')">✕ Fechar</button>
-      </div>
-    </div>
-    <div id="raw-body" style="max-height:70vh;overflow-y:auto;font-family:monospace"></div>
-    <div style="padding:.65rem 1rem;border-top:1px solid var(--border);font-size:.68rem;color:var(--muted)">
-      Linhas em cinza = sem números. Use o filtro para buscar um código de produto e ver se ele aparece e em qual contexto.
-    </div>
-  </div>
-</div>
 
 </body>
 </html>

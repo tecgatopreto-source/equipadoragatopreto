@@ -1,13 +1,32 @@
 # Dependencies
 app/node_modules/
 
-# Database
+# Database (runtime — não commitar)
 app/db/gatopreto.db
 app/db/gatopreto.db-shm
 app/db/gatopreto.db-wal
 app/gatopreto.db
 
-# Misc
-.DS_Store
-*.log
+# Seed DB — WAL/SHM são runtime, mas o .db em si é commitado intencionalmente
+app/db_seed/*.db-shm
+app/db_seed/*.db-wal
+
+# Uploads — PDFs e fotos de produto são dados de runtime, não do repositório
+app/uploads/
+
+# Variáveis de ambiente
 .env
+.env.*
+!.env.example
+
+# OS / editores
+.DS_Store
+Thumbs.db
+*.log
+
+# PDFs de relatório (arquivos de trabalho locais)
+*.pdf
+
+# Imagens de diagnóstico/teste na raiz
+image*.png
+image*.jpg

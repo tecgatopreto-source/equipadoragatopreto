@@ -2,8 +2,32 @@ const router  = require('express').Router();
 const https   = require('https');
 const http    = require('http');
 const zlib    = require('zlib');
+const path    = require('path');
+const fs      = require('fs');
+const multer  = require('multer');
 const { getDb } = require('../db/schema');
 const { authenticate, requireAdmin } = require('../middleware/auth');
+
+const PROD_IMG_DIR = path.join(
+  process.env.UPLOAD_DIR || path.join(__dirname, '..', 'uploads'),
+  'product-images'
+);
+if (!fs.existsSync(PROD_IMG_DIR)) fs.mkdirSync(PROD_IMG_DIR, { recursive: true });
+
+const imgUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, PROD_IMG_DIR),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase().replace(/[^.a-z0-9]/g, '') || '.jpg';
+      cb(null, `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
+    },
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) return cb(null, true);
+    cb(new Error('Apenas imagens são aceitas.'));
+  },
+});
 
 // ════════════════════════════════════════════════════════════════════════════
 //  HTTP helper — GET com suporte a gzip/brotli + redirect follow
@@ -622,6 +646,24 @@ router.delete('/:id', requireAdmin, (req, res) => {
   const info = db.prepare('DELETE FROM products WHERE id = ?').run(req.params.id);
   if (info.changes === 0) return res.status(404).json({ error: 'Produto não encontrado' });
   res.json({ message: 'Produto removido' });
+});
+
+// ── POST /api/products/:id/images/upload  (multipart file) ────────────────
+router.post('/:id/images/upload', authenticate, imgUpload.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+  const db = getDb();
+  const product = db.prepare('SELECT id FROM products WHERE id = ?').get(req.params.id);
+  if (!product) {
+    try { fs.unlinkSync(req.file.path); } catch {}
+    return res.status(404).json({ error: 'Produto não encontrado.' });
+  }
+  const url = `/uploads/product-images/${req.file.filename}`;
+  db.prepare('DELETE FROM product_images WHERE product_id = ? AND is_manual = 0').run(req.params.id);
+  db.prepare('UPDATE product_images SET is_pinned = 0 WHERE product_id = ?').run(req.params.id);
+  const result = db.prepare(
+    'INSERT INTO product_images (product_id, url, is_pinned, is_manual) VALUES (?, ?, 1, 1)'
+  ).run(req.params.id, url);
+  res.status(201).json({ id: result.lastInsertRowid, url, message: 'Imagem salva' });
 });
 
 // ── POST /api/products/:id/images ─────────────────────────────────────────
