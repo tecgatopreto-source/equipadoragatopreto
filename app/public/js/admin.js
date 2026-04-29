@@ -250,7 +250,7 @@ async function loadProducts(page) {
           ${p.is_disabled ? '<span class="badge-disabled" style="margin-left:.4rem">Desativado</span>' : ''}
         </td>
         <td class="col-fiscal">${fmt(p.price_fiscal)}</td>
-        <td class="col-mgmt">${fmt(p.price_mgmt)}</td>
+        <td class="col-mgmt">${fmt(p.price_mgmt ?? p.snap_price_mgmt)}</td>
         <td class="col-fiscal">${p.stock_fiscal != null ? Number(p.stock_fiscal).toLocaleString('pt-BR') : '—'}</td>
         <td class="col-mgmt">${p.snap_stock_mgmt != null ? Number(p.snap_stock_mgmt).toLocaleString('pt-BR') : '—'}</td>
         ${diffCell(p.diff_pct, p.stock_fiscal, p.snap_stock_mgmt)}

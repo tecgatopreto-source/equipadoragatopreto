@@ -278,7 +278,7 @@ function parsePdf(text, productMap, type) {
       seen.add(code);
       results.push({
         productId: code,
-        name: existing ? existing.name : pdfName,
+        name: (existing && !is_disabled) ? existing.name : pdfName,
         pdfName,
         is_disabled,
         current: existing && type === 'fiscal'
