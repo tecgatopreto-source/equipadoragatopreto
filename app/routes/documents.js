@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { getDb } = require('../db/schema');
 const { requireAdmin } = require('../middleware/auth');
+const { classifyProduct } = require('../lib/categories');
 
 const router = express.Router();
 
@@ -91,13 +92,14 @@ router.post('/upload/:type', requireAdmin, async (req, res) => {
   // 5. Salva no banco — bulk upsert único (evita timeout por N queries)
   let updated = 0, created = 0;
   if (extracted.length > 0) {
-    const ids      = extracted.map(i => i.productId);
-    const names    = extracted.map(i => i.name);
-    const pfs      = extracted.map(i => type === 'fiscal'    ? i.suggested.price_fiscal    : null);
-    const sfs      = extracted.map(i => type === 'fiscal'    ? i.suggested.stock_fiscal    : null);
-    const spms     = extracted.map(i => type === 'gerencial' ? i.suggested.snap_price_mgmt : null);
-    const ssms     = extracted.map(i => type === 'gerencial' ? i.suggested.snap_stock_mgmt : null);
-    const disabled = extracted.map(i => i.is_disabled);
+    const ids       = extracted.map(i => i.productId);
+    const names     = extracted.map(i => i.name);
+    const pfs       = extracted.map(i => type === 'fiscal'    ? i.suggested.price_fiscal    : null);
+    const sfs       = extracted.map(i => type === 'fiscal'    ? i.suggested.stock_fiscal    : null);
+    const spms      = extracted.map(i => type === 'gerencial' ? i.suggested.snap_price_mgmt : null);
+    const ssms      = extracted.map(i => type === 'gerencial' ? i.suggested.snap_stock_mgmt : null);
+    const disabled  = extracted.map(i => i.is_disabled);
+    const cats      = extracted.map(i => classifyProduct(i.pdfName || i.name));
 
     try {
       await pool.query(`
@@ -109,16 +111,17 @@ router.post('/upload/:type', requireAdmin, async (req, res) => {
             UNNEST($4::double precision[]) AS stock_fiscal,
             UNNEST($5::double precision[]) AS snap_price_mgmt,
             UNNEST($6::double precision[]) AS snap_stock_mgmt,
-            UNNEST($7::int[])              AS is_disabled
+            UNNEST($7::int[])              AS is_disabled,
+            UNNEST($8::text[])             AS categoria
         )
         INSERT INTO products (id, name, price_fiscal, stock_fiscal, snap_fiscal_at,
-          snap_price_mgmt, snap_stock_mgmt, snap_mgmt_at, is_disabled, status)
+          snap_price_mgmt, snap_stock_mgmt, snap_mgmt_at, is_disabled, status, categoria)
         SELECT
           id, name, price_fiscal, stock_fiscal,
           CASE WHEN price_fiscal IS NOT NULL OR stock_fiscal IS NOT NULL THEN NOW() ELSE NULL END,
           snap_price_mgmt, snap_stock_mgmt,
           CASE WHEN snap_price_mgmt IS NOT NULL OR snap_stock_mgmt IS NOT NULL THEN NOW() ELSE NULL END,
-          is_disabled, 2
+          is_disabled, 2, categoria
         FROM data
         ON CONFLICT(id) DO UPDATE SET
           price_fiscal    = COALESCE(EXCLUDED.price_fiscal,    products.price_fiscal),
@@ -132,8 +135,9 @@ router.post('/upload/:type', requireAdmin, async (req, res) => {
           is_disabled     = EXCLUDED.is_disabled,
           name            = CASE WHEN EXCLUDED.name IS NOT NULL AND EXCLUDED.name != ''
                                  THEN EXCLUDED.name ELSE products.name END,
+          categoria       = COALESCE(EXCLUDED.categoria, products.categoria),
           updated_at      = NOW()
-      `, [ids, names, pfs, sfs, spms, ssms, disabled]);
+      `, [ids, names, pfs, sfs, spms, ssms, disabled, cats]);
 
       updated = extracted.filter(i =>  productMap.has(i.productId)).length;
       created = extracted.filter(i => !productMap.has(i.productId)).length;

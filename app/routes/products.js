@@ -76,10 +76,15 @@ router.get('/', async (req, res) => {
     conditions.push(`p.status = $${params.length}`);
   }
 
-  const { fiscal_alert, disabled } = req.query;
+  const { fiscal_alert, disabled, cat } = req.query;
   if (fiscal_alert === '1') conditions.push('p.fiscal_alert = 1');
   if (disabled === '0')      conditions.push('COALESCE(p.is_disabled, 0) = 0');
   else if (disabled === '1') conditions.push('COALESCE(p.is_disabled, 0) = 1');
+
+  if (cat && cat.trim()) {
+    params.push(cat.trim());
+    conditions.push(`p.categoria = $${params.length}`);
+  }
 
   const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
 

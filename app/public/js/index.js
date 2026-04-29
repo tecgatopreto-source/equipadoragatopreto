@@ -17,10 +17,10 @@ function logout() {
 
 // ── State ──────────────────────────────────────────────────────────────────
 let currentPage = 1, currentTotal = 0, loading = false;
-const LIMIT = 24; // Reduzido para melhor performance
-// Persistência de filtro e busca via localStorage
-let currentDisabled = localStorage.getItem('gp_catalog_disabled')  || '';
-let currentQ        = localStorage.getItem('gp_catalog_q')         || '';
+const LIMIT = 24;
+let currentDisabled  = localStorage.getItem('gp_catalog_disabled') || '';
+let currentQ         = localStorage.getItem('gp_catalog_q')        || '';
+let currentCatLabel  = localStorage.getItem('gp_catalog_cat') || '';
 
 // Modal image state
 let modalProductId  = null;
@@ -53,6 +53,7 @@ async function fetchProducts(page = 1, reset = false) {
   try {
     const params = new URLSearchParams({ q: currentQ, status: 'T', page, limit: LIMIT });
     if (currentDisabled !== '') params.append('disabled', currentDisabled);
+    if (currentCatLabel) params.append('cat', currentCatLabel);
     const data = await apiFetch('/api/products?' + params);
 
     if (!data || !Array.isArray(data.products)) throw new Error('Resposta inválida da API');
@@ -496,13 +497,30 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
+// ── Category select ────────────────────────────────────────────────────────
+(function buildCatSelect() {
+  const sel = document.getElementById('cat-filter');
+  PRODUCT_CATEGORIES.forEach(label => {
+    const opt = document.createElement('option');
+    opt.value = label === 'Todas as categorias' ? '' : label;
+    opt.textContent = label;
+    sel.appendChild(opt);
+  });
+  sel.value = currentCatLabel;
+})();
+
+document.getElementById('cat-filter').addEventListener('change', function () {
+  currentCatLabel = this.value;
+  if (currentCatLabel) localStorage.setItem('gp_catalog_cat', currentCatLabel);
+  else localStorage.removeItem('gp_catalog_cat');
+  fetchProducts(1, true);
+});
+
 // ── Init ───────────────────────────────────────────────────────────────────
-// Restaura filtro e busca salvos no localStorage
 if (currentQ) {
   document.getElementById('q').value = currentQ;
   document.getElementById('qc').style.display = '';
 }
-// Restaura botão de filtro ativo
 document.querySelectorAll('#cat-disabled-group .fb').forEach(b =>
   b.classList.toggle('active', b.dataset.disabled === currentDisabled));
 renderAuthActions();

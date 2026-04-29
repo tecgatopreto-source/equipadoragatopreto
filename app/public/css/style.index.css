@@ -35,6 +35,10 @@ header{background:var(--white);border-bottom:1px solid var(--border);position:st
 .fb:hover{border-color:var(--text);color:var(--text)}
 .fb.active{background:var(--accent);border-color:var(--accent);color:#1a1814;font-weight:700}
 .fb-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.cat-select{padding:.38rem 1.8rem .38rem .75rem;border-radius:4px;border:1.5px solid var(--border2);background:var(--surface);color:var(--text2);font-family:'Inter',sans-serif;font-size:.7rem;font-weight:500;cursor:pointer;transition:border-color .15s;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a8680'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .55rem center;max-width:200px}
+.cat-select:focus{border-color:var(--border2);outline:none}
+.cat-select:hover{border-color:var(--text2)}
+.cat-select option{background:var(--surface);color:var(--text2)}
 .fd-all{background:var(--text2)}.fd-eq{background:var(--green)}.fd-diff{background:var(--red)}.fd-fi{background:var(--amber)}
 
 .toolbar{padding:.45rem 2rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:var(--white);flex-shrink:0}
