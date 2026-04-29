@@ -15,37 +15,31 @@ npm start
 
 # Start with file-watching (development)
 npm run dev
-
-# Seed database (creates admin user + imports products from HTML catalog)
-npm run seed
-
-# Batch-fetch images for products without images
-node batch_images.js [quantity] [offset]
-# Example: node batch_images.js 100 0
 ```
 
 There is no test suite and no linter configured.
 
 ## Architecture
 
-Single-process Express app backed by a SQLite database (`better-sqlite3`). All code lives under `app/`.
+Single-process Express app backed by **PostgreSQL via Supabase** (`pg` pool). All code lives under `app/`.
 
-**Entry point:** `server.js` — mounts two route groups and serves static HTML files with SPA fallbacks (`/admin*`, `/conferente*`, `/*`).
+**Entry point:** `server.js` — mounts route groups and serves static HTML files with SPA fallbacks (`/admin*`, `/conferente*`, `/*`).
 
 **Routes:**
-- `routes/auth.js` — `POST /api/auth/login` (JWT issue) and `GET /api/auth/me`
-- `routes/products.js` — full CRUD for products, images, reports, and image search
+- `routes/auth.js` — `POST /api/auth/login` (delegates to Supabase Auth, then issues a local JWT) and `GET /api/auth/me`
+- `routes/products.js` — full CRUD for products, manual image upload/management, reports
+- `routes/documents.js` — PDF upload and fiscal/gerencial import
 
-**Database:** `db/schema.js` exports a singleton `getDb()` that lazily opens the SQLite file, runs `initSchema`, and applies additive column migrations via try/catch. Tables: `users`, `products`, `product_images`, `product_audit`.
+**Database:** `db/schema.js` exports `getDb()` which returns a `pg.Pool` connected to Supabase via `DATABASE_URL`. The pool sets `search_path` and `timezone = 'America/Sao_Paulo'` on every new connection. Schema (in Supabase): `users`, `products`, `product_images`, `product_audit`, `uploaded_documents`, `import_history`.
 
-**Auth:** `middleware/auth.js` exports `authenticate` (any valid JWT) and `requireAdmin` (role must be `'admin'`). `JWT_SECRET` defaults to a hardcoded string — set the `JWT_SECRET` environment variable in production. Tokens expire in 12 h.
+**Auth:** `middleware/auth.js` exports `authenticate` (any valid JWT) and `requireAdmin` (role must be `'admin'`). `JWT_SECRET` **must** be set as an env var — the server throws at startup if missing. Tokens expire in 12 h. Login goes through Supabase Auth (`/auth/v1/token`) and a short-lived local JWT is issued for API calls.
 
 **Business rule — stock update (`PUT /api/products/:id`):**
 - `stock_fiscal` and `price_fiscal` are read-only; they are never changed by this app.
 - `applyStockRule(real, currentMgmt, currentAlert)` in `routes/products.js`: real < 0 → error; real = 0 → mgmt = 0, `fiscal_alert = 1`; real > 0 → mgmt = real, `fiscal_alert = 0`.
 - Every write that changes any field upserts a single row in `product_audit` (one row per product, overwritten on each change).
 
-**Image search:** `routes/products.js` searches DuckDuckGo (primary, returns Bing CDN thumbnails) with a Google/allorigins proxy fallback. Images are cached in `product_images` on first fetch; subsequent calls return the cached rows. `batch_images.js` is a standalone script that runs the same logic in bulk with a 1200 ms inter-request delay.
+**Images:** Manual upload only (file or URL). No external image search. Products without images display an SVG placeholder based on category keywords in the name (`public/js/product-category-svg.js`).
 
 **Frontend pages** (all vanilla JS, no framework):
 - `public/index.html` — public product catalog
@@ -57,6 +51,12 @@ Single-process Express app backed by a SQLite database (`better-sqlite3`). All c
 
 `app/railway.toml` sets `startCommand = "sh entrypoint.sh"`.
 
-`entrypoint.sh` manages the database volume: if `/data/gatopreto.db` does not exist it copies `db_seed/gatopreto.db` there, then symlinks `/data/gatopreto.db` to `db/gatopreto.db` (the path `schema.js` hardcodes), then runs `node server.js`.
+`entrypoint.sh` runs `node server.js`. Database is hosted on Supabase — no local DB files needed.
 
-The seed database at `app/db_seed/gatopreto.db` is the pre-populated DB committed to the repo for initial Railway deploys. `seed.js` is only used locally — it reads a base64+gzip JSON payload embedded in `catalogo_gato_preto_v10.html` (not committed) to import products and creates an `admin` / `admin123` user.
+## Environment Variables
+
+See `app/.env.example` for the full list. Required:
+- `DATABASE_URL` — Supabase PostgreSQL connection string (transaction pooler)
+- `JWT_SECRET` — min 48 chars hex; server crashes at startup if missing
+- `SUPABASE_URL` — Supabase project URL
+- `SUPABASE_ANON_KEY` — Supabase anon key (used for Supabase Auth)

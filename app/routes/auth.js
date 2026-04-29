@@ -1,31 +1,47 @@
 const router = require('express').Router();
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const { getDb } = require('../db/schema');
+const jwt    = require('jsonwebtoken');
 const { JWT_SECRET } = require('../middleware/auth');
 
+const SUPABASE_URL      = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+
 // POST /api/auth/login
-router.post('/login', (req, res) => {
-  const { username, password } = req.body || {};
-  if (!username || !password)
-    return res.status(400).json({ error: 'Usuário e senha são obrigatórios' });
+router.post('/login', async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password)
+    return res.status(400).json({ error: 'E-mail e senha são obrigatórios' });
 
-  const db = getDb();
-  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
-  if (!user) return res.status(401).json({ error: 'Credenciais inválidas' });
+  try {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ email: email.toLowerCase().trim(), password }),
+    });
 
-  const ok = bcrypt.compareSync(password, user.password);
-  if (!ok) return res.status(401).json({ error: 'Credenciais inválidas' });
+    if (!r.ok) {
+      return res.status(401).json({ error: 'Credenciais inválidas' });
+    }
 
-  const token = jwt.sign(
-    { id: user.id, username: user.username, role: user.role },
-    JWT_SECRET,
-    { expiresIn: '12h' }
-  );
-  res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+    const data = await r.json();
+    const u    = data.user;
+    const role = u?.app_metadata?.role || 'user';
+
+    const token = jwt.sign(
+      { id: u.id, username: u.email, role },
+      JWT_SECRET,
+      { expiresIn: '12h' }
+    );
+
+    res.json({ token, user: { id: u.id, username: u.email, role } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// GET /api/auth/me  (verifica token)
+// GET /api/auth/me
 router.get('/me', require('../middleware/auth').authenticate, (req, res) => {
   res.json({ user: req.user });
 });

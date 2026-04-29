@@ -30,3 +30,6 @@ Thumbs.db
 # Imagens de diagnóstico/teste na raiz
 image*.png
 image*.jpg
+
+# Schema SQL exportado externamente
+database_schema.sql
