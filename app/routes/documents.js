@@ -267,7 +267,7 @@ function parsePdf(text, productMap, type) {
       if (isCode(line) && j > i + 2) break;
       if (pdfName === null) {
         pdfName = line;
-        if (/^D50\s/i.test(line)) is_disabled = 1;
+        if (/^D50[^0-9]/i.test(line)) is_disabled = 1;
         continue;
       }
       const num = parseNum(line);
