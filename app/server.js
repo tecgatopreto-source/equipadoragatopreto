@@ -7,9 +7,12 @@ const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const BASE = (process.env.BASE_PATH || '').replace(/\/$/, ''); // ex: '/catalogo_produtos'
 
-// Pre-render HTML with injected APP_BASE so client JS knows the subpath
+// BASE_PATH é usado APENAS para injetar window.APP_BASE no HTML.
+// O Express sempre serve as rotas na raiz — o Nginx já faz o strip do prefixo.
+// Ex: Nginx recebe /catalogo_produtos/admin → passa /admin ao Express.
+const BASE = (process.env.BASE_PATH || '').replace(/\/$/, '');
+
 function renderHtml(file) {
   let html = fs.readFileSync(path.join(__dirname, 'public', file), 'utf8');
   if (BASE) {
@@ -17,45 +20,39 @@ function renderHtml(file) {
   }
   return html;
 }
-const adminHtml = renderHtml('admin.html');
+const adminHtml      = renderHtml('admin.html');
 const conferenteHtml = renderHtml('conferente.html');
-const indexHtml = renderHtml('index.html');
-const loginHtml = renderHtml('login.html');
+const indexHtml      = renderHtml('index.html');
+const loginHtml      = renderHtml('login.html');
 
 app.use(express.json({ limit: '2mb' }));
 
-// Serve static files (CSS, JS, images, logo, etc.)
-// Arquivos .html são excluídos: passam para as rotas SPA que injetam window.APP_BASE
+// Arquivos estáticos na raiz (.html excluídos — servidos pelas rotas SPA com APP_BASE injetado)
 const staticPublic = express.static(path.join(__dirname, 'public'), { index: false });
-app.use(BASE, (req, res, next) => /\.html?$/i.test(req.path) ? next() : staticPublic(req, res, next));
+app.use((req, res, next) => /\.html?$/i.test(req.path) ? next() : staticPublic(req, res, next));
 
-// Serve SVGs para placeholders de produtos
-app.use(BASE + '/svg', express.static(path.join(__dirname, 'svg')));
+app.use('/svg', express.static(path.join(__dirname, 'svg')));
 
-// Serve PDFs enviados via upload
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-// Serve em /uploads (caminho salvo no banco) e em BASE+/uploads para links internos
 app.use('/uploads', express.static(UPLOAD_DIR));
-if (BASE) app.use(BASE + '/uploads', express.static(UPLOAD_DIR));
 
-// ── Routes ────────────────────────────────────────────────────────────────
-app.use(BASE + '/api/auth',      require('./routes/auth'));
-app.use(BASE + '/api/products',  require('./routes/products'));
-app.use(BASE + '/api/documents', require('./routes/documents'));
+// ── API Routes (sempre na raiz) ───────────────────────────────────────────────
+app.use('/api/auth',      require('./routes/auth'));
+app.use('/api/products',  require('./routes/products'));
+app.use('/api/documents', require('./routes/documents'));
 
-// ── SPA Fallback ──────────────────────────────────────────────────────────
-app.get(BASE + '/login',      (_, res) => res.send(loginHtml));
-app.get(BASE + '/login.html', (_, res) => res.send(loginHtml));
-app.get(BASE + '/admin*',     (_, res) => res.send(adminHtml));
-app.get(BASE + '/conferente*',(_, res) => res.send(conferenteHtml));
-// Captura BASE sem barra (ex: /catalogo_produtos) e BASE/* (ex: /catalogo_produtos/qualquer)
-if (BASE) app.get(BASE,      (_, res) => res.send(indexHtml));
-app.get(BASE + '/*',          (_, res) => res.send(indexHtml));
+// ── SPA Fallback (sempre na raiz) ─────────────────────────────────────────────
+app.get('/login',       (_, res) => res.send(loginHtml));
+app.get('/login.html',  (_, res) => res.send(loginHtml));
+app.get('/admin*',      (_, res) => res.send(adminHtml));
+app.get('/conferente*', (_, res) => res.send(conferenteHtml));
+app.get('/*',           (_, res) => res.send(indexHtml));
 
-// ── Start ─────────────────────────────────────────────────────────────────
+// ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n Gato Preto — Catálogo Online`);
-  console.log(`   http://localhost:${PORT}${BASE || '/'}`);
-  console.log(`   Admin: http://localhost:${PORT}${BASE}/admin\n`);
+  console.log(`   Local:     http://localhost:${PORT}/`);
+  if (BASE) console.log(`   Produção: http://servidor${BASE}/`);
+  console.log();
 });
