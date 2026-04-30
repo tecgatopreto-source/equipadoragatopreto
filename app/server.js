@@ -69,9 +69,24 @@ app.get('/conferente*', (_, res) => res.send(conferenteHtml));
 app.get('/*',           (_, res) => res.send(indexHtml));
 
 // ── Start ─────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`\n Gato Preto — Catálogo Online`);
-  console.log(`   Local:     http://localhost:${PORT}/`);
-  if (BASE) console.log(`   Produção: http://servidor${BASE}/`);
-  console.log();
-});
+// Pre-resolve Supabase hostname to IPv4 before pool creation (absam.io has no IPv6 routing)
+(async () => {
+  try {
+    const { URL } = require('url');
+    const { lookup } = require('dns').promises;
+    const dbUrl = new URL(process.env.DATABASE_URL);
+    const { address } = await lookup(dbUrl.hostname, { family: 4 });
+    dbUrl.hostname = address;
+    process.env.DATABASE_URL = dbUrl.toString();
+    console.log(`[db] Resolved ${address} (IPv4)`);
+  } catch (e) {
+    console.warn('[db] IPv4 pre-resolve failed:', e.message);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`\n Gato Preto — Catálogo Online`);
+    console.log(`   Local:     http://localhost:${PORT}/`);
+    if (BASE) console.log(`   Produção: http://servidor${BASE}/`);
+    console.log();
+  });
+})();

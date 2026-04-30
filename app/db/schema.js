@@ -1,15 +1,21 @@
 const { Pool } = require('pg');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  max: 10,
-  idleTimeoutMillis: 30000,
-});
+let pool = null;
 
-pool.on('connect', client => {
-  client.query('SET search_path TO "CatalogoProdutos"');
-  client.query("SET timezone = 'America/Sao_Paulo'");
-});
+function getDb() {
+  if (!pool) {
+    pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: 10,
+      idleTimeoutMillis: 30000,
+    });
+    pool.on('connect', client => {
+      client.query('SET search_path TO "CatalogoProdutos"');
+      client.query("SET timezone = 'America/Sao_Paulo'");
+    });
+  }
+  return pool;
+}
 
-module.exports = { getDb: () => pool };
+module.exports = { getDb };
