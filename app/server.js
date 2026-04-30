@@ -5,6 +5,11 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 
+// Variáveis obrigatórias — falha rápido se faltar
+['DATABASE_URL', 'JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_ANON_KEY'].forEach(k => {
+  if (!process.env[k]) { console.error(`[FATAL] Variável de ambiente ausente: ${k}`); process.exit(1); }
+});
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
