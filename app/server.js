@@ -9,8 +9,27 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const BASE = (process.env.BASE_PATH || '').replace(/\/$/, ''); // ex: '/catalogo_produtos'
 
+// Pre-render HTML with injected APP_BASE so client JS knows the subpath
+function renderHtml(file) {
+  let html = fs.readFileSync(path.join(__dirname, 'public', file), 'utf8');
+  if (BASE) {
+    html = html.replace('<head>', `<head><script>window.APP_BASE='${BASE}';</script>`);
+  }
+  return html;
+}
+const adminHtml = renderHtml('admin.html');
+const conferenteHtml = renderHtml('conferente.html');
+const indexHtml = renderHtml('index.html');
+const loginHtml = renderHtml('login.html');
+
 app.use(express.json({ limit: '2mb' }));
-app.use(BASE, express.static(path.join(__dirname, 'public')));
+
+// Serve static files (CSS, JS, images, logo, etc.)
+// index:false evita servir index.html cru (sem APP_BASE injetado) para requisições de diretório
+app.use(BASE, express.static(path.join(__dirname, 'public'), { index: false }));
+
+// Serve SVGs para placeholders de produtos
+app.use(BASE + '/svg', express.static(path.join(__dirname, 'svg')));
 
 // Serve PDFs enviados via upload
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
@@ -23,16 +42,17 @@ app.use(BASE + '/api/products',  require('./routes/products'));
 app.use(BASE + '/api/documents', require('./routes/documents'));
 
 // ── SPA Fallback ──────────────────────────────────────────────────────────
-app.get(BASE + '/admin*', (_, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'admin.html')));
-app.get(BASE + '/conferente*', (_, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'conferente.html')));
-app.get(BASE + '/*', (_, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get(BASE + '/login',      (_, res) => res.send(loginHtml));
+app.get(BASE + '/login.html', (_, res) => res.send(loginHtml));
+app.get(BASE + '/admin*',     (_, res) => res.send(adminHtml));
+app.get(BASE + '/conferente*',(_, res) => res.send(conferenteHtml));
+// Captura BASE sem barra (ex: /catalogo_produtos) e BASE/* (ex: /catalogo_produtos/qualquer)
+if (BASE) app.get(BASE,      (_, res) => res.send(indexHtml));
+app.get(BASE + '/*',          (_, res) => res.send(indexHtml));
 
 // ── Start ─────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`\n🐱 Gato Preto — Catálogo Online`);
-  console.log(`   http://localhost:${PORT}/catalogo_produtos`);
-  console.log(`   Admin: http://localhost:${PORT}/catalogo_produtos/admin\n`);
+  console.log(`\n Gato Preto — Catálogo Online`);
+  console.log(`   http://localhost:${PORT}${BASE || '/'}`);
+  console.log(`   Admin: http://localhost:${PORT}${BASE}/admin\n`);
 });
