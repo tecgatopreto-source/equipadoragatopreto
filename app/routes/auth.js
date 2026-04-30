@@ -21,13 +21,15 @@ router.post('/login', async (req, res) => {
       body: JSON.stringify({ email: email.toLowerCase().trim(), password }),
     });
 
+    const data = await r.json();
+
     if (!r.ok) {
-      return res.status(401).json({ error: 'Credenciais inválidas' });
+      const msg = data?.error_description || data?.msg || data?.message || 'Credenciais inválidas';
+      return res.status(401).json({ error: msg });
     }
 
-    const data = await r.json();
     const u    = data.user;
-    const role = u?.app_metadata?.role || 'user';
+    const role = u?.app_metadata?.role || u?.user_metadata?.role || 'user';
 
     const token = jwt.sign(
       { id: u.id, username: u.email, role },
@@ -37,6 +39,7 @@ router.post('/login', async (req, res) => {
 
     res.json({ token, user: { id: u.id, username: u.email, role } });
   } catch (err) {
+    console.error('[auth] login error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
