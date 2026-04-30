@@ -42,6 +42,17 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 app.use('/uploads', express.static(UPLOAD_DIR));
 
+// ── Health check (diagnóstico de conexão com o banco) ─────────────────────────
+app.get('/api/health', async (_, res) => {
+  try {
+    const { getDb } = require('./db/schema');
+    const { rows } = await getDb().query('SELECT COUNT(*) FROM products');
+    res.json({ ok: true, products: rows[0].count });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // ── API Routes (sempre na raiz) ───────────────────────────────────────────────
 app.use('/api/auth',      require('./routes/auth'));
 app.use('/api/products',  require('./routes/products'));
