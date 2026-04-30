@@ -1,15 +1,16 @@
 // ── Auth guard ─────────────────────────────────────────────────────────────
+const BASE = window.APP_BASE || '';
 const token = localStorage.getItem('gp_token');
 const user  = JSON.parse(localStorage.getItem('gp_user') || 'null');
 if (!token || !user || user.role !== 'admin') {
-  location.href = '/login.html';
+  location.href = BASE + '/login.html';
 }
 document.getElementById('uname').textContent = user ? user.username : '';
 
 function logout() {
   localStorage.removeItem('gp_token');
   localStorage.removeItem('gp_user');
-  location.href = '/login.html';
+  location.href = BASE + '/login.html';
 }
 
 // ── Sidebar mobile toggle ──────────────────────────────────────────────────
@@ -52,7 +53,7 @@ function navigate(page) {
 
 // ── API helper ─────────────────────────────────────────────────────────────
 async function api(method, path, body) {
-  const res = await fetch('/api' + path, {
+  const res = await fetch(BASE + '/api' + path, {
     method,
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
     body: body ? JSON.stringify(body) : undefined
@@ -61,7 +62,7 @@ async function api(method, path, body) {
   if (res.status === 401) {
     localStorage.removeItem('gp_token');
     localStorage.removeItem('gp_user');
-    location.href = '/login.html';
+    location.href = BASE + '/login.html';
     return;
   }
   if (!res.ok) throw new Error(data.error || 'Erro na API');
@@ -375,7 +376,7 @@ async function uploadImageFile() {
   if (!file) { showToast('Selecione um arquivo primeiro.'); return; }
   const formData = new FormData();
   formData.append('image', file);
-  const res = await fetch(`/api/products/${editingId}/images/upload`, {
+  const res = await fetch(BASE + `/api/products/${editingId}/images/upload`, {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + token },
     body: formData,
@@ -814,7 +815,7 @@ async function uploadPdf(type, file) {
 
   let res, data;
   try {
-    res  = await fetch(`/api/documents/upload/${type}`, {
+    res  = await fetch(BASE + `/api/documents/upload/${type}`, {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + token },
       body: form,

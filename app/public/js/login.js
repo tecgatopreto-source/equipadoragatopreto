@@ -1,3 +1,4 @@
+const BASE = window.APP_BASE || '';
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = document.getElementById('btn');
@@ -7,7 +8,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   btn.textContent = 'Entrando…';
 
   try {
-    const res = await fetch('/api/auth/login', {
+    const res = await fetch(BASE + '/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -20,7 +21,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 
     localStorage.setItem('gp_token', data.token);
     localStorage.setItem('gp_user', JSON.stringify(data.user));
-    window.location.href = data.user.role === 'admin' ? '/admin' : '/';
+    window.location.href = data.user.role === 'admin' ? BASE + '/admin' : BASE + '/';
   } catch (ex) {
     err.textContent = ex.message;
     err.style.display = 'block';

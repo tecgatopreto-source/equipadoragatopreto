@@ -1,5 +1,6 @@
 'use strict';
 
+const BASE = window.APP_BASE || '';
 /* ═══ STATE ══════════════════════════════════════════════════════════ */
 let token    = null;
 let products = [];
@@ -48,7 +49,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   btn.disabled = true;
   btn.textContent = 'Entrando…';
   try {
-    const res  = await fetch('/api/auth/login', {
+    const res  = await fetch(BASE + '/api/auth/login', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
@@ -107,7 +108,7 @@ async function loadProducts(p = 1) {
   if (alertFilter)  params.set('fiscal_alert', '1');
 
   try {
-    const res  = await fetch('/api/products?' + params, {
+    const res  = await fetch(BASE + '/api/products?' + params, {
       headers: token ? { Authorization: 'Bearer ' + token } : {}
     });
     if (res.status === 401) { logout(); return; }
@@ -202,7 +203,7 @@ async function openSheet(id) {
   let p = products.find(x => x.id === id);
   if (!p) {
     try {
-      const res = await fetch(`/api/products/${encodeURIComponent(id)}`,{
+      const res = await fetch(BASE + `/api/products/${encodeURIComponent(id)}`,{
         headers:{ Authorization:'Bearer '+token }
       });
       p = await res.json();
@@ -320,7 +321,7 @@ async function saveProduct() {
     };
     if (rawVal !== '') body.stock_real = parseFloat(rawVal);
 
-    const res = await fetch(`/api/products/${encodeURIComponent(currentProduct.id)}`, {
+    const res = await fetch(BASE + `/api/products/${encodeURIComponent(currentProduct.id)}`, {
       method:  'PUT',
       headers: {
         'Content-Type':  'application/json',

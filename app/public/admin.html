@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="./css/style.admin.css">
-<link rel="icon" href="/logo.png" type="image/png">
+<link rel="icon" href="logo.png" type="image/png">
 </head>
 <body>
 
@@ -20,7 +20,7 @@
     </div>
   </div>
   <div class="header-actions">
-    <a class="btn-sm" href="/">Ver Catálogo</a>
+    <a class="btn-sm" href="#" onclick="location.href=(window.APP_BASE||'')+'/';return false">Ver Catálogo</a>
     <button class="btn-sm btn-danger" onclick="logout()">Sair (<span id="uname">—</span>)</button>
   </div>
 </header>

@@ -6,7 +6,7 @@
 <title>Login — Gato Preto</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./css/style.login.css">
-<link rel="icon" href="/logo.png" type="image/png">
+<link rel="icon" href="logo.png" type="image/png">
 </head>
 <body>
 <div class="card">
@@ -27,7 +27,7 @@
     <button class="btn" type="submit" id="btn">Entrar</button>
     <div class="error" id="err"></div>
   </form>
-  <a class="back" href="/">← Voltar ao catálogo</a>
+  <a class="back" href="#" onclick="location.href=(window.APP_BASE||'')+'/';return false;">← Voltar ao catálogo</a>
 </div>
 <script src="js/login.js"></script>
 </body>
