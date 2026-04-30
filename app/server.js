@@ -25,8 +25,9 @@ const loginHtml = renderHtml('login.html');
 app.use(express.json({ limit: '2mb' }));
 
 // Serve static files (CSS, JS, images, logo, etc.)
-// index:false evita servir index.html cru (sem APP_BASE injetado) para requisições de diretório
-app.use(BASE, express.static(path.join(__dirname, 'public'), { index: false }));
+// Arquivos .html são excluídos: passam para as rotas SPA que injetam window.APP_BASE
+const staticPublic = express.static(path.join(__dirname, 'public'), { index: false });
+app.use(BASE, (req, res, next) => /\.html?$/i.test(req.path) ? next() : staticPublic(req, res, next));
 
 // Serve SVGs para placeholders de produtos
 app.use(BASE + '/svg', express.static(path.join(__dirname, 'svg')));
@@ -34,7 +35,9 @@ app.use(BASE + '/svg', express.static(path.join(__dirname, 'svg')));
 // Serve PDFs enviados via upload
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-app.use(BASE + '/uploads', express.static(UPLOAD_DIR));
+// Serve em /uploads (caminho salvo no banco) e em BASE+/uploads para links internos
+app.use('/uploads', express.static(UPLOAD_DIR));
+if (BASE) app.use(BASE + '/uploads', express.static(UPLOAD_DIR));
 
 // ── Routes ────────────────────────────────────────────────────────────────
 app.use(BASE + '/api/auth',      require('./routes/auth'));
