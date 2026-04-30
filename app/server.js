@@ -1,6 +1,3 @@
-// Força resolução DNS IPv4 (evita ENETUNREACH em servidores sem rota IPv6)
-require('dns').setDefaultResultOrder('ipv4first');
-
 // Carrega .env em desenvolvimento local (ignorado se não existir)
 try { require('fs').readFileSync('.env').toString().split('\n').forEach(l => { const [k,...v]=l.trim().split('='); if(k&&!k.startsWith('#')&&!process.env[k]) process.env[k]=v.join('='); }); } catch {}
 
@@ -69,20 +66,10 @@ app.get('/conferente*', (_, res) => res.send(conferenteHtml));
 app.get('/*',           (_, res) => res.send(indexHtml));
 
 // ── Start ─────────────────────────────────────────────────────────────────────
-// Pre-resolve Supabase hostname to IPv4 before pool creation (absam.io has no IPv6 routing)
+// initDb() resolve o hostname para IPv4 e cria o pool com host literal (sem DNS no pg)
+const { initDb } = require('./db/schema');
 (async () => {
-  try {
-    const { URL } = require('url');
-    const { lookup } = require('dns').promises;
-    const dbUrl = new URL(process.env.DATABASE_URL);
-    const { address } = await lookup(dbUrl.hostname, { family: 4 });
-    dbUrl.hostname = address;
-    process.env.DATABASE_URL = dbUrl.toString();
-    console.log(`[db] Resolved ${address} (IPv4)`);
-  } catch (e) {
-    console.warn('[db] IPv4 pre-resolve failed:', e.message);
-  }
-
+  await initDb();
   app.listen(PORT, () => {
     console.log(`\n Gato Preto — Catálogo Online`);
     console.log(`   Local:     http://localhost:${PORT}/`);

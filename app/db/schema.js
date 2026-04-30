@@ -3,19 +3,41 @@ const { Pool } = require('pg');
 let pool = null;
 
 function getDb() {
-  if (!pool) {
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
-      max: 10,
-      idleTimeoutMillis: 30000,
-    });
-    pool.on('connect', client => {
-      client.query('SET search_path TO "CatalogoProdutos"');
-      client.query("SET timezone = 'America/Sao_Paulo'");
-    });
-  }
+  if (!pool) throw new Error('[db] Pool not initialized — initDb() must complete first');
   return pool;
 }
 
-module.exports = { getDb };
+async function initDb() {
+  const { URL } = require('url');
+  const dns = require('dns').promises;
+
+  const raw = process.env.DATABASE_URL;
+  const u = new URL(raw);
+
+  let host = u.hostname;
+  try {
+    const { address } = await dns.lookup(u.hostname, { family: 4 });
+    host = address;
+    console.log(`[db] Resolved to IPv4: ${address}`);
+  } catch (e) {
+    console.warn('[db] IPv4 resolve failed, using hostname:', e.message);
+  }
+
+  pool = new Pool({
+    host,
+    port: parseInt(u.port, 10) || 5432,
+    user: decodeURIComponent(u.username),
+    password: decodeURIComponent(u.password),
+    database: u.pathname.slice(1),
+    ssl: { rejectUnauthorized: false },
+    max: 10,
+    idleTimeoutMillis: 30000,
+  });
+
+  pool.on('connect', client => {
+    client.query('SET search_path TO "CatalogoProdutos"');
+    client.query("SET timezone = 'America/Sao_Paulo'");
+  });
+}
+
+module.exports = { getDb, initDb };
