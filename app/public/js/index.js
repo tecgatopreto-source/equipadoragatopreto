@@ -213,7 +213,7 @@ function renderCards(products) {
       <div class="card-img">
         ${p.pinned_img
           ? `<img class="ci-photo" data-src="${p.pinned_img}" alt="" loading="lazy">`
-          : placeholderSvg(p.category || p.name)}
+          : placeholderSvg(p.category)}
         <div class="card-ref">#${p.id}</div>
       </div>
       <div class="card-body">
