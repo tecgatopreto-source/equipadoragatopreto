@@ -278,8 +278,8 @@
         <!-- Fiscal -->
         <div class="pdf-card">
           <h3>PDF Fiscal</h3>
-          <div class="upload-drop" id="drop-fiscal" ondragover="onDrag(event,'fiscal')" ondragleave="offDrag('fiscal')" ondrop="onDropFile(event,'fiscal')">
-            <input type="file" accept="application/pdf" id="file-fiscal" onchange="handleFileSelect('fiscal')">
+          <div class="upload-drop" id="drop-fiscal" ondragover="onDrag(event,'fiscal')" ondragleave="offDrag('fiscal')" ondrop="onDropFile(event,'fiscal')" onclick="document.getElementById('file-fiscal').click()">
+            <input type="file" accept="application/pdf" id="file-fiscal" onchange="handleFileSelect('fiscal')" style="display:none">
             <strong>Arraste ou clique para selecionar</strong>
             <p>Atualiza: Preço Fiscal e Estoque Fiscal</p>
           </div>
@@ -289,13 +289,14 @@
         <!-- Gerencial -->
         <div class="pdf-card">
           <h3>PDF Gerencial</h3>
-          <div class="upload-drop" id="drop-gerencial" ondragover="onDrag(event,'gerencial')" ondragleave="offDrag('gerencial')" ondrop="onDropFile(event,'gerencial')">
-            <input type="file" accept="application/pdf" id="file-gerencial" onchange="handleFileSelect('gerencial')">
+          <div class="upload-drop" id="drop-gerencial" ondragover="onDrag(event,'gerencial')" ondragleave="offDrag('gerencial')" ondrop="onDropFile(event,'gerencial')" onclick="document.getElementById('file-gerencial').click()">
+            <input type="file" accept="application/pdf" id="file-gerencial" onchange="handleFileSelect('gerencial')" style="display:none">
             <strong>Arraste ou clique para selecionar</strong>
             <p>Atualiza: Preço Gerencial e Estoque Gerencial</p>
           </div>
           <div class="pdf-status" id="status-gerencial">Nenhum arquivo selecionado.</div>
         </div>
+
       </div>
 
       <!-- Preview -->
