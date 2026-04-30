@@ -1,3 +1,6 @@
+// Força resolução DNS IPv4 (evita ENETUNREACH em servidores sem rota IPv6)
+require('dns').setDefaultResultOrder('ipv4first');
+
 // Carrega .env em desenvolvimento local (ignorado se não existir)
 try { require('fs').readFileSync('.env').toString().split('\n').forEach(l => { const [k,...v]=l.trim().split('='); if(k&&!k.startsWith('#')&&!process.env[k]) process.env[k]=v.join('='); }); } catch {}
 
