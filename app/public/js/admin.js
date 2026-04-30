@@ -37,7 +37,7 @@ function navigate(page) {
   document.querySelector(`[data-page="${page}"]`).classList.add('active');
   history.replaceState(null, '', '#' + page);
   document.querySelector('.sidebar').classList.remove('open');
-  if (page === 'products') { _restoreFilterButtons(); loadProducts(1); }
+  if (page === 'products') { _restoreFilterButtons(); loadCatFilter(); loadProducts(1); }
   if (page === 'dashboard')  loadStats();
   if (page === 'report')     loadReport();
   if (page === 'deactivate') {
@@ -137,6 +137,7 @@ let sortDir = 'asc';
 let alertFilter = false;
 let statusFilter   = localStorage.getItem('gp_admin_status')   ?? 'T';
 let disabledFilter = localStorage.getItem('gp_admin_disabled') ?? '';
+let catFilter      = localStorage.getItem('gp_admin_cat')      ?? '';
 
 function _applyStatusFilter(val) {
   statusFilter = val;
@@ -163,6 +164,25 @@ function _restoreFilterButtons() {
     b.classList.toggle('active', b.dataset.val === statusFilter));
   document.querySelectorAll('#disabled-group .filter-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.val === disabledFilter));
+}
+
+async function loadCatFilter() {
+  const sel = document.getElementById('cat-group');
+  try {
+    const data = await api('GET', '/products/categories');
+    const current = catFilter;
+    sel.innerHTML = '<option value="">Todas as categorias</option>' +
+      data.categories.map(c =>
+        `<option value="${c}"${c === current ? ' selected' : ''}>${c}</option>`
+      ).join('');
+  } catch (_) {}
+}
+
+function setCatFilter() {
+  catFilter = document.getElementById('cat-group').value;
+  if (catFilter) localStorage.setItem('gp_admin_cat', catFilter);
+  else localStorage.removeItem('gp_admin_cat');
+  loadProducts(1);
 }
 
 function debSearch() {
@@ -235,8 +255,9 @@ async function loadProducts(page) {
   const disabled      = disabledFilter;
   const alertParam    = alertFilter ? '&fiscal_alert=1' : '';
   const disabledParam = disabled !== '' ? `&disabled=${disabled}` : '';
+  const catParam      = catFilter   ? `&cat=${encodeURIComponent(catFilter)}` : '';
   const data = await api('GET',
-    `/products?q=${encodeURIComponent(q)}&status=${status}&page=${page}&limit=${LIMIT}&sort=${sortCol}&order=${sortDir}${alertParam}${disabledParam}`
+    `/products?q=${encodeURIComponent(q)}&status=${status}&page=${page}&limit=${LIMIT}&sort=${sortCol}&order=${sortDir}${alertParam}${disabledParam}${catParam}`
   );
 
   const tbody = document.getElementById('prod-tbody');
@@ -900,6 +921,113 @@ async function loadImportHistory() {
   }
 }
 
+
+// ── Categorização por PDF ──────────────────────────────────────────────────
+function onDropCat(e) {
+  e.preventDefault();
+  offDrag('cat');
+  const file = e.dataTransfer.files[0];
+  if (file) processCatPdf(file);
+}
+
+function handleCatFile() {
+  const input = document.getElementById('file-cat');
+  if (input.files[0]) processCatPdf(input.files[0]);
+}
+
+function clearCatPreview() {
+  document.getElementById('cat-preview').style.display = 'none';
+  document.getElementById('cat-preview').innerHTML = '';
+  const s = document.getElementById('status-cat');
+  s.textContent = 'Nenhum arquivo selecionado.';
+  s.className = 'pdf-status';
+  document.getElementById('file-cat').value = '';
+}
+
+async function processCatPdf(file) {
+  if (!file.name.toLowerCase().endsWith('.pdf')) {
+    document.getElementById('status-cat').textContent = '❌ Apenas arquivos PDF.';
+    return;
+  }
+  const catInput = document.getElementById('cat-name');
+  if (!catInput.value.trim()) {
+    const auto = file.name.split('_')[0].replace(/[^a-zA-ZÀ-ÿ0-9\s]/g, '').trim();
+    if (auto) catInput.value = auto;
+  }
+  const s = document.getElementById('status-cat');
+  s.className = 'pdf-status';
+  s.textContent = `Processando "${file.name}"…`;
+
+  const form = new FormData();
+  form.append('pdf', file);
+  let res, data;
+  try {
+    res  = await fetch(BASE + '/api/documents/categorize', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+      body: form,
+    });
+    data = await res.json();
+  } catch (err) {
+    s.textContent = '❌ Erro de rede: ' + err.message;
+    return;
+  }
+  if (!res.ok) { s.textContent = '❌ ' + (data.error || 'Erro'); return; }
+
+  document.getElementById('file-cat').value = '';
+  const cat = catInput.value.trim() || '(sem nome)';
+  const preview = document.getElementById('cat-preview');
+  preview.style.display = 'block';
+
+  if (!data.found) {
+    preview.innerHTML = `<div style="color:var(--amber);font-size:.75rem">Nenhum código do PDF encontrado no banco. Total no PDF: ${data.total}.</div>`;
+    s.textContent = 'Nenhum produto encontrado.';
+    return;
+  }
+
+  const codesJson = JSON.stringify(data.codes);
+  preview.innerHTML = `
+    <div style="font-size:.73rem;font-weight:600;margin-bottom:.5rem">${data.found} de ${data.total} código(s) do PDF encontrados no banco.</div>
+    <div style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:4px;margin-bottom:.75rem">
+      <table style="width:100%;font-size:.68rem;border-collapse:collapse">
+        <thead><tr>
+          <th style="padding:.3rem .75rem;text-align:left;background:var(--surface);font-size:.6rem;color:var(--muted);border-bottom:1px solid var(--border)">Código</th>
+          <th style="padding:.3rem .75rem;text-align:left;background:var(--surface);font-size:.6rem;color:var(--muted);border-bottom:1px solid var(--border)">Nome</th>
+          <th style="padding:.3rem .75rem;text-align:left;background:var(--surface);font-size:.6rem;color:var(--muted);border-bottom:1px solid var(--border)">Categoria atual</th>
+        </tr></thead>
+        <tbody>${data.products.map(p => `<tr>
+          <td style="padding:.35rem .75rem;border-bottom:1px solid var(--border);font-weight:600">${p.id}</td>
+          <td style="padding:.35rem .75rem;border-bottom:1px solid var(--border)">${p.name}</td>
+          <td style="padding:.35rem .75rem;border-bottom:1px solid var(--border);color:var(--muted)">${p.categoria || '—'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>
+    <button class="btn-sm btn-primary" onclick='applyCatUpdate(${codesJson})'>
+      ✅ Atribuir categoria "<strong>${cat}</strong>" a ${data.found} produto(s)
+    </button>
+  `;
+  s.textContent = `${data.found} produto(s) prontos para categorizar como "${cat}". Confirme abaixo.`;
+}
+
+async function applyCatUpdate(codes) {
+  const cat = document.getElementById('cat-name').value.trim();
+  if (!cat) { alert('Digite o nome da categoria antes de confirmar.'); return; }
+  let res, data;
+  try {
+    res  = await fetch(BASE + '/api/documents/set-category', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codes, categoria: cat }),
+    });
+    data = await res.json();
+  } catch (err) { alert('Erro: ' + err.message); return; }
+  if (!res.ok) { alert('Erro: ' + (data.error || 'Erro')); return; }
+  const preview = document.getElementById('cat-preview');
+  preview.innerHTML = `<div style="color:var(--green);font-weight:700;font-size:.8rem">✅ Categoria "${cat}" atribuída a ${data.updated} produto(s).</div>`;
+  const s = document.getElementById('status-cat');
+  s.textContent = `✅ ${data.updated} produtos atualizados.`;
+  s.className = 'pdf-status ok';
+}
 
 // ── Init ───────────────────────────────────────────────────────────────────
 // Restaura filtros salvos

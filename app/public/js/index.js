@@ -604,16 +604,19 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-// ── Category select ────────────────────────────────────────────────────────
-(function buildCatSelect() {
+// ── Category select — carregada do banco para incluir categorias dinâmicas ─
+(async function buildCatSelect() {
   const sel = document.getElementById('cat-filter');
-  PRODUCT_CATEGORIES.forEach(label => {
-    const opt = document.createElement('option');
-    opt.value = label === 'Todas as categorias' ? '' : label;
-    opt.textContent = label;
-    sel.appendChild(opt);
-  });
-  sel.value = currentCatLabel;
+  let cats = [];
+  try {
+    const r = await fetch(BASE + '/api/products/categories');
+    const d = await r.json();
+    cats = d.categories || [];
+  } catch (_) {
+    cats = PRODUCT_CATEGORIES.filter(l => l !== 'Todas as categorias');
+  }
+  sel.innerHTML = '<option value="">Todas as categorias</option>' +
+    cats.map(c => `<option value="${c}"${c === currentCatLabel ? ' selected' : ''}>${c}</option>`).join('');
 })();
 
 document.getElementById('cat-filter').addEventListener('change', function () {

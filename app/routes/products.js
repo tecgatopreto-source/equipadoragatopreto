@@ -35,6 +35,20 @@ function calcStatus(stockFiscal, stockMgmt) {
   return (stockFiscal == stockMgmt) ? 0 : 1;
 }
 
+// ── GET /api/products/categories ──────────────────────────────────────────
+router.get('/categories', async (_req, res) => {
+  const pool = getDb();
+  try {
+    const { rows } = await pool.query(
+      'SELECT DISTINCT categoria FROM products WHERE categoria IS NOT NULL ORDER BY categoria'
+    );
+    res.json({ categories: rows.map(r => r.categoria) });
+  } catch (err) {
+    console.error('GET /categories error:', err);
+    res.status(500).json({ error: 'Erro ao buscar categorias.' });
+  }
+});
+
 // ── GET /api/products ──────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   const pool = getDb();
