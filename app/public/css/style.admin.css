@@ -85,7 +85,7 @@ header{background:var(--white);border-bottom:1px solid var(--border);padding:.7r
 .search-in{flex:1;border:1.5px solid var(--border2);border-radius:4px;padding:.45rem .75rem;font-family:'Inter',sans-serif;font-size:.8rem;color:var(--text);outline:none;transition:border-color .2s}
 .search-in:focus{border-color:var(--accent)}
 table{width:100%;border-collapse:collapse;font-size:.72rem}
-th{padding:.38rem .45rem;text-align:left;font-size:.58rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);background:var(--surface);border-bottom:1px solid var(--border);white-space:normal;line-height:1.25}
+th{padding:.38rem .45rem;text-align:left;font-size:.58rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);background:var(--surface);border-bottom:1px solid var(--border);white-space:nowrap;line-height:1.25}
 th.sortable{cursor:pointer;user-select:none;transition:color .15s}
 th.sortable:hover{color:var(--text)}
 th.sortable.sort-asc::after{content:' ↑';color:var(--accent)}
@@ -131,7 +131,7 @@ tr:hover td{background:var(--surface)}
 
 /* Filter button groups */
 .filter-group{display:flex;gap:2px;flex-wrap:wrap}
-.filter-btn{padding:.35rem .8rem;border:1.5px solid var(--border2);border-radius:3px;background:var(--white);font-family:'Inter',sans-serif;font-size:.72rem;font-weight:500;cursor:pointer;color:var(--text2);transition:all .15s;white-space:nowrap}
+.filter-btn{padding:.32rem .55rem;border:1.5px solid var(--border2);border-radius:3px;background:var(--white);font-family:'Inter',sans-serif;font-size:.72rem;font-weight:500;cursor:pointer;color:var(--text2);transition:all .15s;white-space:nowrap}
 .filter-btn:hover{border-color:var(--accent);color:var(--accent)}
 .filter-btn.active{background:var(--accent);border-color:var(--accent);color:#1a1814;font-weight:700}
 

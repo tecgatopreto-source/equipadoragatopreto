@@ -129,8 +129,12 @@
         <button class="btn-sm btn-primary" onclick="openProductForm()">+ Novo Produto</button>
       </div>
       <div class="table-wrap">
-        <div class="table-toolbar" style="flex-wrap:wrap;gap:.5rem">
-          <input class="search-in" id="prod-q" placeholder="Buscar por nome ou código…" oninput="debSearch()" autocomplete="off">
+        <div class="table-toolbar" style="flex-wrap:nowrap;gap:.5rem;overflow-x:auto">
+          <input class="search-in" id="prod-q" placeholder="Buscar por nome ou código…" oninput="debSearch()" autocomplete="off" style="flex:1 1 0;min-width:100px">
+          <select id="cat-group" onchange="setCatFilter()"
+                  style="flex:1 1 0;min-width:120px;border:1.5px solid var(--border2);border-radius:4px;padding:.42rem .55rem;font-family:'Inter',sans-serif;font-size:.78rem;color:var(--text);background:var(--white);cursor:pointer">
+            <option value="">Todas as categorias</option>
+          </select>
           <div class="filter-group" id="status-group">
             <button class="filter-btn active" data-val="T"  onclick="setStatusFilter('T')">Todos</button>
             <button class="filter-btn"        data-val="0"  onclick="setStatusFilter('0')">Iguais</button>
@@ -146,11 +150,8 @@
                   style="white-space:nowrap" title="Mostrar apenas produtos com alerta fiscal">
             ⚠️ Alerta Fiscal
           </button>
-          <select id="cat-group" onchange="setCatFilter()"
-                  style="border:1.5px solid var(--border2);border-radius:4px;padding:.42rem .65rem;font-family:'Inter',sans-serif;font-size:.78rem;color:var(--text);background:var(--white);cursor:pointer;min-width:170px;max-width:240px">
-            <option value="">Todas as categorias</option>
-          </select>
         </div>
+        <div style="overflow-x:auto">
         <table>
           <thead>
             <tr>
@@ -168,6 +169,7 @@
           </thead>
           <tbody id="prod-tbody"></tbody>
         </table>
+        </div>
         <div class="tbl-pagination">
           <span id="pg-info"></span>
           <div class="pg-btns">
@@ -374,6 +376,12 @@
       <div class="field">
         <label>Nome do Produto *</label>
         <input type="text" id="f-name" placeholder="Ex: Filtro de Óleo…" required>
+      </div>
+      <div class="field">
+        <label>Categoria / Grupo</label>
+        <select id="f-cat" style="width:100%;border:1.5px solid var(--border2);border-radius:4px;padding:.45rem .65rem;font-family:'Inter',sans-serif;font-size:.8rem;color:var(--text);background:var(--white);outline:none">
+          <option value="">Sem categoria</option>
+        </select>
       </div>
       <div class="field-row">
         <div class="field">

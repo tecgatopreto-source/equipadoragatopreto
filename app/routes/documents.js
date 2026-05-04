@@ -219,6 +219,57 @@ router.get('/rawtext/:id', requireAdmin, async (req, res) => {
   }
 });
 
+// POST /api/documents/categorize — extrai códigos do PDF, retorna matches no banco
+router.post('/categorize', requireAdmin, async (req, res) => {
+  try { await runUpload(req, res); }
+  catch (err) { return res.status(400).json({ error: err.message }); }
+  if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+
+  let rawText;
+  try {
+    const parsed = await pdfParse(fs.readFileSync(req.file.path));
+    rawText = parsed.text;
+  } catch (err) {
+    return res.status(422).json({ error: 'Não foi possível ler o PDF: ' + err.message });
+  }
+  try { fs.unlinkSync(req.file.path); } catch (_) {}
+
+  const pool = getDb();
+  const { rows: allProducts } = await pool.query('SELECT id, name, categoria FROM products');
+  const productMap = new Map(allProducts.map(p => [p.id, p]));
+
+  // Usa o mesmo parser estruturado do import: só aceita IDs seguidos de nome + estoque + preço
+  const extracted = parsePdf(rawText, productMap, 'fiscal');
+  const codesInPdf = [...new Set(extracted.map(e => e.productId).filter(id => productMap.has(id)))];
+
+  if (!codesInPdf.length) return res.json({ total: 0, found: 0, codes: [], products: [] });
+
+  const products = codesInPdf.map(id => {
+    const p = productMap.get(id);
+    return { id: p.id, name: p.name, categoria: p.categoria };
+  });
+  res.json({
+    total: codesInPdf.length,
+    found: codesInPdf.length,
+    codes: codesInPdf,
+    products,
+  });
+});
+
+// POST /api/documents/set-category — aplica categoria a lista de códigos
+router.post('/set-category', requireAdmin, async (req, res) => {
+  const { codes, categoria } = req.body || {};
+  if (!Array.isArray(codes) || !codes.length || !categoria)
+    return res.status(400).json({ error: 'Parâmetros inválidos.' });
+
+  const pool = getDb();
+  const { rowCount } = await pool.query(
+    'UPDATE products SET categoria = $1, updated_at = NOW() WHERE id = ANY($2::text[])',
+    [categoria.trim(), codes]
+  );
+  res.json({ updated: rowCount });
+});
+
 // GET /api/documents/
 router.get('/', requireAdmin, async (req, res) => {
   try {

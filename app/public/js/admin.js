@@ -166,16 +166,32 @@ function _restoreFilterButtons() {
     b.classList.toggle('active', b.dataset.val === disabledFilter));
 }
 
-async function loadCatFilter() {
-  const sel = document.getElementById('cat-group');
+let _cachedCategories = [];
+
+async function _fetchCategories() {
   try {
     const data = await api('GET', '/products/categories');
-    const current = catFilter;
-    sel.innerHTML = '<option value="">Todas as categorias</option>' +
-      data.categories.map(c =>
-        `<option value="${c}"${c === current ? ' selected' : ''}>${c}</option>`
-      ).join('');
+    _cachedCategories = data.categories || [];
   } catch (_) {}
+  return _cachedCategories;
+}
+
+async function loadCatFilter() {
+  const sel = document.getElementById('cat-group');
+  const cats = await _fetchCategories();
+  const current = catFilter;
+  sel.innerHTML = '<option value="">Todas as categorias</option>' +
+    cats.map(c =>
+      `<option value="${c}"${c === current ? ' selected' : ''}>${c}</option>`
+    ).join('');
+}
+
+function _populateFormCatSelect(currentCat) {
+  const sel = document.getElementById('f-cat');
+  sel.innerHTML = '<option value="">Sem categoria</option>' +
+    _cachedCategories.map(c =>
+      `<option value="${c}"${c === currentCat ? ' selected' : ''}>${c}</option>`
+    ).join('');
 }
 
 function setCatFilter() {
@@ -303,10 +319,12 @@ async function loadProducts(page) {
 // ── Product form ───────────────────────────────────────────────────────────
 let editingId = null;
 let editingProductName = null;
+let editingProductCategoria = null;
 
 function openProductForm(product) {
   editingId = product ? product.id : null;
   editingProductName = product?.name || null;
+  editingProductCategoria = product?.categoria || null;
   document.getElementById('form-title').textContent = product ? 'Editar Produto' : 'Novo Produto';
   document.getElementById('f-id').value        = product?.id || '';
   document.getElementById('f-id').disabled     = !!product;
@@ -317,6 +335,7 @@ function openProductForm(product) {
   document.getElementById('f-sfiscal').value   = product?.stock_fiscal ?? '';
   document.getElementById('f-snap-smgmt').value = product?.snap_stock_mgmt ?? '';
   document.getElementById('f-sreal').value     = product?.stock_real ?? '';
+  _populateFormCatSelect(product?.categoria || '');
   document.getElementById('form-err').style.display = 'none';
   document.getElementById('fiscal-warning-msg').classList.remove('show');
   document.getElementById('fiscal-ok-msg').style.display = 'none';
@@ -350,7 +369,7 @@ function _renderImgGrid(images) {
   const grid = document.getElementById('img-grid');
   if (!images.length) {
     const svg = typeof getCategoryPlaceholder === 'function'
-      ? getCategoryPlaceholder(editingProductName)
+      ? getCategoryPlaceholder(editingProductName, editingProductCategoria)
       : '';
     grid.innerHTML = `<div class="img-tile" style="pointer-events:none;opacity:.45;display:flex;align-items:center;justify-content:center;padding:.5rem">${svg}</div><span style="font-size:.72rem;color:var(--muted);grid-column:2/-1;align-self:center">Nenhuma foto. Adicione pelo arquivo ou URL.</span>`;
     return;
@@ -438,11 +457,13 @@ async function saveProduct() {
     return;
   }
 
+  const cat = document.getElementById('f-cat').value;
   const body = {
     id, name,
     price_fiscal: pf !== '' ? parseFloat(pf) : null,
     price_mgmt:   pm !== '' ? parseFloat(pm) : null,
     stock_real:   sr !== '' ? parseFloat(sr) : null,
+    categoria: cat || null,
   };
 
   try {
@@ -452,6 +473,7 @@ async function saveProduct() {
     } else {
       await api('POST', '/products', body);
       showToast('Produto criado!');
+      if (cat) { await _fetchCategories(); loadCatFilter(); }
     }
     closeProductForm();
     loadProducts(prodPage);

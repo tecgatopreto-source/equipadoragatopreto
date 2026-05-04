@@ -104,16 +104,14 @@ router.get('/', async (req, res) => {
 
   try {
     const countParams = [...params];
-    const { rows: countRows } = await pool.query(
-      `SELECT COUNT(*) as n FROM products p ${where}`, countParams
-    );
-    const total = parseInt(countRows[0].n);
-
     const dataParams = [...params, parseInt(limit), off];
-    const { rows } = await pool.query(`
+
+    const [countResult, dataResult] = await Promise.all([
+      pool.query(`SELECT COUNT(*) as n FROM products p ${where}`, countParams),
+      pool.query(`
       SELECT p.id, p.name, p.price_fiscal, p.price_mgmt,
              p.stock_fiscal, p.stock_mgmt, p.snap_stock_mgmt, p.stock_real,
-             p.snap_price_mgmt,
+             p.snap_price_mgmt, p.categoria,
              p.fiscal_alert, p.status, COALESCE(p.is_disabled, 0) as is_disabled,
              pi.url as pinned_img,
              (CASE WHEN GREATEST(ABS(COALESCE(p.stock_fiscal,0)), ABS(COALESCE(p.snap_stock_mgmt,0))) = 0
@@ -131,7 +129,10 @@ router.get('/', async (req, res) => {
       ${where}
       ORDER BY ${sortCol} ${sortDir}
       LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}
-    `, dataParams);
+    `, dataParams),
+    ]);
+    const total = parseInt(countResult.rows[0].n);
+    const rows = dataResult.rows;
 
     res.json({ total, page: parseInt(page), limit: parseInt(limit), products: rows });
   } catch (err) {
@@ -336,7 +337,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
-    const { id, name, price_fiscal, price_mgmt, stock_fiscal, stock_mgmt, stock_real } = req.body;
+    const { id, name, price_fiscal, price_mgmt, stock_fiscal, stock_mgmt, stock_real, categoria } = req.body;
     if (!id || !name) return res.status(400).json({ error: 'id e name são obrigatórios' });
 
     const { rows: existing } = await pool.query('SELECT id FROM products WHERE id = $1', [id]);
@@ -344,10 +345,10 @@ router.post('/', requireAdmin, async (req, res) => {
 
     const autoStatus = calcStatus(stock_fiscal ?? null, stock_mgmt ?? null);
     await pool.query(
-      `INSERT INTO products (id, name, price_fiscal, price_mgmt, stock_fiscal, stock_mgmt, stock_real, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      `INSERT INTO products (id, name, price_fiscal, price_mgmt, stock_fiscal, stock_mgmt, stock_real, status, categoria)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [id, name, price_fiscal ?? null, price_mgmt ?? null,
-       stock_fiscal ?? null, stock_mgmt ?? null, stock_real ?? null, autoStatus]
+       stock_fiscal ?? null, stock_mgmt ?? null, stock_real ?? null, autoStatus, categoria || null]
     );
     res.status(201).json({ message: 'Produto criado', id });
   } catch (err) {
@@ -369,7 +370,7 @@ function applyStockRule(real, mgmt, alert) {
 router.put('/:id', requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
-    const { name, price_mgmt, stock_mgmt, stock_real } = req.body;
+    const { name, price_mgmt, stock_mgmt, stock_real, categoria } = req.body;
 
     const { rows: bRows } = await pool.query(
       'SELECT name, price_fiscal, price_mgmt, stock_fiscal, stock_mgmt, snap_stock_mgmt, stock_real, status, fiscal_alert FROM products WHERE id = $1',
@@ -390,11 +391,13 @@ router.put('/:id', requireAdmin, async (req, res) => {
     const newFiscalAlert = rule.fiscalAlert;
     const newStatus      = calcStatus(newStockFiscal, before.snap_stock_mgmt);
 
+    const catVal = categoria !== undefined ? (categoria || null) : undefined;
     await pool.query(
       `UPDATE products SET name=$1, price_mgmt=$2, stock_fiscal=$3, stock_mgmt=$4,
-       stock_real=$5, fiscal_alert=$6, status=$7, updated_at=NOW() WHERE id=$8`,
+       stock_real=$5, fiscal_alert=$6, status=$7,
+       categoria=COALESCE($9, categoria), updated_at=NOW() WHERE id=$8`,
       [newName, newPriceMgmt, newStockFiscal, newStockMgmt,
-       newStockReal, newFiscalAlert, newStatus, req.params.id]
+       newStockReal, newFiscalAlert, newStatus, req.params.id, catVal ?? null]
     );
 
     const changed =

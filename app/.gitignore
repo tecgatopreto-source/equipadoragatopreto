@@ -1,15 +1,6 @@
 # Dependencies
 node_modules/
 
-# Database runtime
-db/gatopreto.db
-db/gatopreto.db-shm
-db/gatopreto.db-wal
-
-# Seed DB WAL (runtime, o .db é commitado intencionalmente)
-db_seed/*.db-shm
-db_seed/*.db-wal
-
 # Uploads — PDFs e fotos de produto são dados de runtime
 uploads/
 

@@ -86,119 +86,6 @@ function badge(s) {
   if (s === 1) return '<span class="badge badge-diff">Divergente</span>';
   return '<span class="badge badge-fi">Só Fiscal</span>';
 }
-function placeholderSvg(category = null) {
-  // Mapeamento de categorias para SVGs específicos
-  const categorySvgMap = {
-    'bateria': 'bateria.svg',
-    'calota': 'calota.svg',
-    'farol': 'farol-principal.svg',
-    'lanterna': 'lanterna.svg',
-    'lampada': 'lampadas.svg',
-    'amortecedor': 'amortecedores-variados.svg',
-    'bomba': 'bombas-brucutus-reservatorio.svg',
-    'filtro': 'filtro.svg',
-    'cinto': 'cinto-de-seguranca.svg',
-    'buzina': 'buzinas.svg',
-    'engate': 'engate.svg',
-    'capa': 'capa.svg',
-    'borracha': 'borracha.svg',
-    'ferragem': 'ferragem.svg',
-    'ferramenta': 'ferramentas.svg',
-    'mola': 'molas.svg',
-    'bucha': 'bucha.svg',
-    'cabo': 'cabo.svg',
-    'macaneta': 'macaneta-manivela-alca-pux.svg',
-    'manivela': 'manivela.svg',
-    'fechadura': 'fechadura-e-batentes.svg',
-    'lente': 'lente.svg',
-    'emblema': 'emblemas.svg',
-    'adesivo': 'adesivos.svg',
-    'defletor': 'defletor-calha-de-chuva.svg',
-    'estribo': 'estribo.svg',
-    'friso': 'friso-lateral-teto.svg',
-    'difusor': 'difusor.svg',
-    'gancho': 'gancho-da-cacamba.svg',
-    'capota': 'capota.svg',
-    'aba': 'aba.svg',
-    'abracadeira': 'abracadeira.svg',
-    'grampos': 'grampos-buchas-presilhas.svg',
-    'guarnicao': 'guarnicao-borracha-parabrisa.svg',
-    'lameira': 'lameiras-para-barros.svg',
-    'aplique': 'aplique-antenas.svg',
-    'antena': 'aplique-antenas.svg',
-    'coifa': 'bola-cambio-coifa.svg',
-    'reservatorio': 'bombas-brucutus-reservatorio.svg',
-    'maquina': 'maquinas.svg',
-    'vidro': 'maquina-vidro.svg',
-    'fluido': 'fluidos-aditivos-aromatizantes.svg',
-    'oleo': 'fluidos-aditivos-aromatizantes.svg',
-    'eletronico': 'eletronicos.svg',
-    'acabamento': 'acabamento-banco-interiores.svg',
-    'interior': 'acabamento-banco-interiores.svg',
-    'externo': 'acabamento-externo-carroceria.svg',
-    'carroceria': 'acabamento-externo-carroceria.svg',
-    'porta': 'acabamento-porta-vidro.svg',
-    'acessorio': 'acessorios-e-pecas-complementares.svg',
-    'complementar': 'acessorios-e-pecas-complementares.svg',
-    'material': 'materia-prima.svg',
-    'observacao': 'obs-baixa.svg',
-    'obs': 'obs-baixa.svg',
-    'baixa': 'obs-baixa.svg',
-    'servico': 'servicos.svg',
-    'serviço': 'servicos.svg',
-    'outros': 'outros.svg',
-    'outro': 'outros.svg'
-  };
-
-  // Se não houver categoria, usar SVG genérico
-  if (!category) {
-    return `<svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:55%;height:55%;opacity:.65">
-      <circle cx="40" cy="40" r="28" stroke="#d4d1cb" stroke-width="2"/>
-      <path d="M28 38c0-6.627 5.373-12 12-12s12 5.373 12 12v8H28v-8z" fill="#e8e6e1"/>
-      <circle cx="40" cy="26" r="4" fill="#d4d1cb"/>
-    </svg>`;
-  }
-
-  // Normalizar categoria para minúsculas e remover acentos
-  const normalizedCategory = category.toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-
-  // Procurar SVG correspondente
-  let svgFile = null;
-  
-  // Busca exata primeiro
-  if (categorySvgMap[normalizedCategory]) {
-    svgFile = categorySvgMap[normalizedCategory];
-  } else {
-    // Busca por palavras-chave
-    for (const [key, file] of Object.entries(categorySvgMap)) {
-      if (normalizedCategory.includes(key) || key.includes(normalizedCategory)) {
-        svgFile = file;
-        break;
-      }
-    }
-  }
-
-  // Se encontrou SVG, carregar do servidor
-  if (svgFile) {
-    const baseUrl = window.APP_BASE || '';
-    return `<img src="${baseUrl}/svg/${svgFile}" alt="${category}" style="width:55%;height:55%;opacity:.65" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-    <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:55%;height:55%;opacity:.65;display:none">
-      <circle cx="40" cy="40" r="28" stroke="#d4d1cb" stroke-width="2"/>
-      <path d="M28 38c0-6.627 5.373-12 12-12s12 5.373 12 12v8H28v-8z" fill="#e8e6e1"/>
-      <circle cx="40" cy="26" r="4" fill="#d4d1cb"/>
-    </svg>`;
-  }
-
-  // Fallback para SVG genérico
-  return `<svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:55%;height:55%;opacity:.65">
-    <circle cx="40" cy="40" r="28" stroke="#d4d1cb" stroke-width="2"/>
-    <path d="M28 38c0-6.627 5.373-12 12-12s12 5.373 12 12v8H28v-8z" fill="#e8e6e1"/>
-    <circle cx="40" cy="26" r="4" fill="#d4d1cb"/>
-  </svg>`;
-}
-
 // ── Render cards ───────────────────────────────────────────────────────────
 function renderCards(products) {
   const grid = document.getElementById('grid');
@@ -213,7 +100,7 @@ function renderCards(products) {
       <div class="card-img">
         ${p.pinned_img
           ? `<img class="ci-photo" data-src="${p.pinned_img}" alt="" loading="lazy">`
-          : placeholderSvg(p.category)}
+          : getCategoryPlaceholder(p.name, p.categoria)}
         <div class="card-ref">#${p.id}</div>
       </div>
       <div class="card-body">
@@ -613,7 +500,7 @@ function showToast(msg) {
     const d = await r.json();
     cats = d.categories || [];
   } catch (_) {
-    cats = PRODUCT_CATEGORIES.filter(l => l !== 'Todas as categorias');
+    cats = [];
   }
   sel.innerHTML = '<option value="">Todas as categorias</option>' +
     cats.map(c => `<option value="${c}"${c === currentCatLabel ? ' selected' : ''}>${c}</option>`).join('');
