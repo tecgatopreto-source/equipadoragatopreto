@@ -17,6 +17,7 @@ function logout() {
 }
 
 // ── State ──────────────────────────────────────────────────────────────────
+const _mpSvgDefault = document.getElementById('mp-svg')?.innerHTML || '';
 let currentPage = 1, currentTotal = 0, loading = false;
 const LIMIT = 24;
 let currentDisabled  = localStorage.getItem('gp_catalog_disabled') || '';
@@ -24,10 +25,13 @@ let currentQ         = localStorage.getItem('gp_catalog_q')        || '';
 let currentCatLabel  = localStorage.getItem('gp_catalog_cat') || '';
 
 // Modal image state
-let modalProductId  = null;
-let modalImages     = [];   // [{id, url, is_pinned}, ...]
-let modalImgIndex   = 0;    // index da foto exibida
-let _modalGen       = 0;    // geração do modal — evita race condition entre aberturas
+let modalProductId       = null;
+let modalImages          = [];   // [{id, url, is_pinned}, ...]
+let modalImgIndex        = 0;    // index da foto exibida
+let _modalGen            = 0;    // geração do modal — evita race condition entre aberturas
+let _modalProductName       = '';
+let _modalProductCategoria  = '';
+let _modalProductIsDisabled = 0;
 
 // ── Fetch helpers ──────────────────────────────────────────────────────────
 async function apiFetch(path, opts = {}) {
@@ -100,11 +104,14 @@ function renderCards(products) {
       <div class="card-img">
         ${p.pinned_img
           ? `<img class="ci-photo" data-src="${p.pinned_img}" alt="" loading="lazy">`
-          : getCategoryPlaceholder(p.name, p.categoria)}
+          : getCategoryPlaceholder(p.name, p.categoria, p.is_disabled)}
         <div class="card-ref">#${p.id}</div>
       </div>
       <div class="card-body">
-        <div class="card-code">Ref. ${p.id}</div>
+        <div class="card-code">
+          <span>Ref. ${p.id}</span>
+          ${p.categoria ? `<span class="card-cat">${p.categoria}</span>` : ''}
+        </div>
         <div class="card-name">${p.name}</div>
         <div class="card-footer">
           <div class="card-price">${fmt(p.price_fiscal)}</div>
@@ -249,6 +256,7 @@ async function openModal(id) {
   document.getElementById('m-name').textContent       = '…';
   document.getElementById('m-info-name').textContent  = '…';
   document.getElementById('m-code').textContent       = '—';
+  document.getElementById('m-cat').textContent        = '';
   document.getElementById('m-stats').innerHTML        = '';
   document.getElementById('mp-img').classList.remove('on');
   document.getElementById('m-img').src                = '';
@@ -265,10 +273,33 @@ async function openModal(id) {
   setBadge('', '');
 
   // Load product info
-  const p = await apiFetch('/api/products/' + id);
+  let p;
+  try {
+    p = await apiFetch('/api/products/' + id);
+  } catch {
+    if (gen !== _modalGen) return;
+    document.getElementById('ph-loader').classList.add('off');
+    document.getElementById('m-name').textContent     = 'Erro ao carregar';
+    document.getElementById('m-info-name').textContent = '';
+    setBadge('Erro', 'isb-none');
+    return;
+  }
+  if (gen !== _modalGen) return;
+
+  _modalProductName       = p.name || '';
+  _modalProductCategoria  = p.categoria || '';
+  _modalProductIsDisabled = p.is_disabled || 0;
+  const mpSvgEl = document.getElementById('mp-svg');
+  if (mpSvgEl && typeof getCategorySvgPath === 'function') {
+    const svgPath = getCategorySvgPath(_modalProductCategoria, _modalProductIsDisabled);
+    mpSvgEl.innerHTML = svgPath
+      ? `<img src="${svgPath}" alt="" class="mp-svg-img">`
+      : _mpSvgDefault;
+  }
   document.getElementById('m-name').textContent      = p.name;
   document.getElementById('m-info-name').textContent = p.name;
   document.getElementById('m-code').textContent      = 'Ref. ' + p.id;
+  document.getElementById('m-cat').textContent       = p.categoria || '';
 
   const snapMgmt = p.snap_stock_mgmt;
   const snapDiff = (p.stock_fiscal != null && snapMgmt != null)
