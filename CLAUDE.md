@@ -47,11 +47,9 @@ Single-process Express app backed by **PostgreSQL via Supabase** (`pg` pool). Al
 - `public/conferente.html` — stock checker view; requires any authenticated user
 - `public/login.html` — login form
 
-## Deployment (Railway)
+## Deployment (absam.io)
 
-`app/railway.toml` sets `startCommand = "sh entrypoint.sh"`.
-
-`entrypoint.sh` runs `node server.js`. Database is hosted on Supabase — no local DB files needed.
+The project runs on a server at **absam.io**. `entrypoint.sh` runs `node server.js`. Database is hosted on Supabase — no local DB files needed.
 
 ## Environment Variables
 
