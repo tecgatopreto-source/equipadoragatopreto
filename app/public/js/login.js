@@ -21,6 +21,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 
     localStorage.setItem('gp_token', data.token);
     localStorage.setItem('gp_user', JSON.stringify(data.user));
+    localStorage.setItem('gp_last_activity', Date.now().toString());
     window.location.href = data.user.role === 'admin' ? BASE + '/admin' : BASE + '/';
   } catch (ex) {
     err.textContent = ex.message;

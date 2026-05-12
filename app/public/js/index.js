@@ -13,8 +13,10 @@ function renderAuthActions() {
   }
 }
 function logout() {
+  _sessionClear();
   localStorage.removeItem('gp_token'); localStorage.removeItem('gp_user'); location.reload();
 }
+if (token) _sessionInit(logout);
 
 // ── State ──────────────────────────────────────────────────────────────────
 const _mpSvgDefault = document.getElementById('mp-svg')?.innerHTML || '';

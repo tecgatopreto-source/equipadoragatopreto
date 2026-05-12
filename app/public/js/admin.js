@@ -8,10 +8,12 @@ if (!token || !user || user.role !== 'admin') {
 document.getElementById('uname').textContent = user ? user.username : '';
 
 function logout() {
+  _sessionClear();
   localStorage.removeItem('gp_token');
   localStorage.removeItem('gp_user');
   location.href = BASE + '/login.html';
 }
+_sessionInit(logout);
 
 // ── Sidebar mobile toggle ──────────────────────────────────────────────────
 function toggleSidebar() {

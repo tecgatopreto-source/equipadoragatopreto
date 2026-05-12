@@ -31,10 +31,12 @@ function showLogin() {
 function showApp() {
   document.getElementById('screen-login').style.display = 'none';
   document.getElementById('screen-app').style.display   = 'block';
+  _sessionInit(logout);
   loadProducts(1);
 }
 
 function logout() {
+  _sessionClear();
   localStorage.removeItem('gp_token');
   localStorage.removeItem('gp_user');
   token = null;
@@ -62,6 +64,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     token = data.token;
     localStorage.setItem('gp_token', token);
     localStorage.setItem('gp_user', JSON.stringify(data.user));
+    localStorage.setItem('gp_last_activity', Date.now().toString());
     showApp();
   } catch (ex) {
     err.textContent = ex.message;
