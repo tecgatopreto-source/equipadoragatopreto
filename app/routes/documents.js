@@ -99,7 +99,7 @@ router.post('/upload/:type', requireAdmin, async (req, res) => {
     const spms      = extracted.map(i => type === 'gerencial' ? i.suggested.snap_price_mgmt : null);
     const ssms      = extracted.map(i => type === 'gerencial' ? i.suggested.snap_stock_mgmt : null);
     const disabled  = extracted.map(i => i.is_disabled);
-    const cats      = extracted.map(i => classifyProduct(i.pdfName || i.name));
+    const cats      = extracted.map(() => null);
 
     try {
       await pool.query(`
