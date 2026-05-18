@@ -4,6 +4,16 @@ const { JWT_SECRET } = require('../middleware/auth');
 
 const SUPABASE_URL      = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+const SISTEMA           = 'CatalogoProdutos';
+
+async function supabaseLogout(accessToken) {
+  try {
+    await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${accessToken}` },
+    });
+  } catch (_) {}
+}
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
@@ -24,11 +34,28 @@ router.post('/login', async (req, res) => {
     const data = await r.json();
 
     if (!r.ok) {
-      const msg = data?.error_description || data?.msg || data?.message || 'Credenciais inválidas';
-      return res.status(401).json({ error: msg });
+      return res.status(401).json({ error: 'Usuário sem acesso a este sistema.' });
     }
 
-    const u    = data.user;
+    const u           = data.user;
+    const accessToken = data.access_token;
+
+    const perfisRes  = await fetch(
+      `${SUPABASE_URL}/rest/v1/perfis?user_id=eq.${u.id}&sistema=eq.${SISTEMA}&select=user_id&limit=1`,
+      {
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      }
+    );
+    const perfisData = await perfisRes.json();
+
+    if (!Array.isArray(perfisData) || perfisData.length === 0) {
+      supabaseLogout(accessToken);
+      return res.status(401).json({ error: 'Usuário sem acesso a este sistema.' });
+    }
+
     const role = u?.app_metadata?.role || u?.user_metadata?.role || 'user';
 
     const token = jwt.sign(
