@@ -34,7 +34,7 @@ router.post('/login', async (req, res) => {
     const data = await r.json();
 
     if (!r.ok) {
-      return res.status(401).json({ error: 'Usuário sem acesso a este sistema.' });
+      return res.status(401).json({ error: 'invalid_credentials' });
     }
 
     const u           = data.user;
@@ -53,7 +53,7 @@ router.post('/login', async (req, res) => {
 
     if (!Array.isArray(perfisData) || perfisData.length === 0) {
       supabaseLogout(accessToken);
-      return res.status(401).json({ error: 'Usuário sem acesso a este sistema.' });
+      return res.status(401).json({ error: 'no_access' });
     }
 
     const role = u?.app_metadata?.role || u?.user_metadata?.role || 'user';

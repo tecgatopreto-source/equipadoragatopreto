@@ -4,17 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Login — Gato Preto</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./css/style.login.css">
 <link rel="icon" href="logo.png" type="image/png">
 </head>
-<body>
-<div class="card">
-  <div class="logo">
-    <div class="logo-mark">Gato <span>Preto</span></div>
-    <div class="logo-sub">Catálogo de Autopeças</div>
+<body class="login-shell">
+<div class="login-card">
+  <div class="login-logo">
+    <img src="logo.png" alt="Gato Preto">
   </div>
-  <h2>Acesso administrativo</h2>
+  <h1 class="login-title">Controle de Produtos</h1>
+  <p class="login-sub">Entre com sua conta para continuar</p>
   <form id="loginForm">
     <div class="field">
       <label for="email">E-mail</label>
@@ -24,8 +24,15 @@
       <label for="password">Senha</label>
       <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" required>
     </div>
+    <div class="error" id="err">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0;margin-top:1px;">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <span id="err-text"></span>
+    </div>
     <button class="btn" type="submit" id="btn">Entrar</button>
-    <div class="error" id="err"></div>
   </form>
   <a class="back" href="#" onclick="location.href=(window.APP_BASE||'')+'/';return false;">← Voltar ao catálogo</a>
 </div>
