@@ -556,3 +556,12 @@ document.querySelectorAll('#cat-disabled-group .fb').forEach(b =>
 renderAuthActions();
 fetchStats();
 fetchProducts(1, true);
+
+// Quando o browser restaura a página do bfcache (botão voltar), refaz o fetch.
+// Sem isso, "loading" pode ficar true e o grid ficar vazio.
+window.addEventListener('pageshow', e => {
+  if (e.persisted) {
+    loading = false;
+    fetchProducts(1, true);
+  }
+});
