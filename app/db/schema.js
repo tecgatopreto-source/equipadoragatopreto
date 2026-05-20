@@ -30,8 +30,8 @@ async function initDb() {
     password: decodeURIComponent(u.password),
     database: u.pathname.slice(1),
     ssl: { rejectUnauthorized: false },
-    max: 10,
-    idleTimeoutMillis: 30000,
+    max: 20,
+    idleTimeoutMillis: 60000,
   });
 
   pool.on('connect', client => {

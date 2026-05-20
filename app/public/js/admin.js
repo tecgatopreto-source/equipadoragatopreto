@@ -135,6 +135,8 @@ function applyStockRuleUI() {
 let prodPage = 1;
 const LIMIT = 25;
 let debTimer;
+let filterTimer;
+let _loadReqId = 0;
 let sortCol = 'id';
 let sortDir = 'asc';
 let alertFilter = false;
@@ -151,7 +153,8 @@ function _applyStatusFilter(val) {
 
 function setStatusFilter(val) {
   _applyStatusFilter(val);
-  loadProducts(1);
+  clearTimeout(filterTimer);
+  filterTimer = setTimeout(() => loadProducts(1), 150);
 }
 
 function setDisabledFilter(val) {
@@ -159,7 +162,8 @@ function setDisabledFilter(val) {
   localStorage.setItem('gp_admin_disabled', val);
   document.querySelectorAll('#disabled-group .filter-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.val === val));
-  loadProducts(1);
+  clearTimeout(filterTimer);
+  filterTimer = setTimeout(() => loadProducts(1), 150);
 }
 
 function _restoreFilterButtons() {
@@ -201,7 +205,8 @@ function setCatFilter() {
   catFilter = document.getElementById('cat-group').value;
   if (catFilter) localStorage.setItem('gp_admin_cat', catFilter);
   else localStorage.removeItem('gp_admin_cat');
-  loadProducts(1);
+  clearTimeout(filterTimer);
+  filterTimer = setTimeout(() => loadProducts(1), 150);
 }
 
 function debSearch() {
@@ -218,7 +223,8 @@ function toggleAlertFilter() {
   btn.style.background      = alertFilter ? 'var(--amber)' : '';
   btn.style.color           = alertFilter ? '#fff' : '';
   btn.style.borderColor     = alertFilter ? 'var(--amber)' : '';
-  loadProducts(1);
+  clearTimeout(filterTimer);
+  filterTimer = setTimeout(() => loadProducts(1), 150);
 }
 
 const fmt = n => n != null ? 'R$ ' + Number(n).toFixed(2).replace('.', ',') : '—';
@@ -268,7 +274,10 @@ document.querySelectorAll('th.sortable').forEach(th => {
 document.querySelector('th[data-col="id"]').classList.add('sort-asc');
 
 async function loadProducts(page) {
+  const reqId = ++_loadReqId;
   prodPage = page;
+  const tbody = document.getElementById('prod-tbody');
+  tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:1.5rem;color:var(--muted);font-size:.8rem">Carregando…</td></tr>';
   const q             = document.getElementById('prod-q').value;
   const status        = statusFilter;
   const disabled      = disabledFilter;
@@ -278,8 +287,8 @@ async function loadProducts(page) {
   const data = await api('GET',
     `/products?q=${encodeURIComponent(q)}&status=${status}&page=${page}&limit=${LIMIT}&sort=${sortCol}&order=${sortDir}${alertParam}${disabledParam}${catParam}`
   );
+  if (reqId !== _loadReqId) return;
 
-  const tbody = document.getElementById('prod-tbody');
   if (!data.products.length) {
     tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:2rem;color:var(--muted)">Nenhum produto encontrado</td></tr>';
   } else {

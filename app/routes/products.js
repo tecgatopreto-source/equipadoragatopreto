@@ -169,7 +169,7 @@ router.get('/action-stats', authenticate, async (req, res) => {
   try {
     const pool = getDb();
     const [altRes, dstRes] = await Promise.all([
-      pool.query(`SELECT COUNT(DISTINCT product_id) as alteracoes FROM product_audit WHERE changed_at::date = CURRENT_DATE`),
+      pool.query(`SELECT COUNT(DISTINCT product_id) as alteracoes FROM product_audit WHERE changed_at >= CURRENT_DATE AND changed_at < CURRENT_DATE + INTERVAL '1 day'`),
       pool.query(`SELECT COUNT(*) as desativar FROM products WHERE fiscal_alert = 1`),
     ]);
     const alteracoes = parseInt(altRes.rows[0].alteracoes);
@@ -199,8 +199,8 @@ router.get('/report', authenticate, async (req, res) => {
 
     const params = [];
     const conditions = [];
-    if (date_from) { params.push(date_from); conditions.push(`a.changed_at::date >= $${params.length}`); }
-    if (date_to)   { params.push(date_to);   conditions.push(`a.changed_at::date <= $${params.length}`); }
+    if (date_from) { params.push(date_from); conditions.push(`a.changed_at >= $${params.length}::date`); }
+    if (date_to)   { params.push(date_to);   conditions.push(`a.changed_at < ($${params.length}::date + INTERVAL '1 day')`); }
 
     const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
 
@@ -217,6 +217,7 @@ router.get('/report', authenticate, async (req, res) => {
       FROM product_audit a
       ${where}
       ORDER BY ${sortCol} ${sortDir}
+      LIMIT 1000
     `, params);
 
     res.json({ total: rows.length, rows });
@@ -231,66 +232,51 @@ router.get('/deactivate-report', authenticate, async (req, res) => {
     const pool = getDb();
     const { sort = 'changed_at', order = 'desc', flag = '', date_from = '', date_to = '' } = req.query;
 
-    const [dstRes, altRes] = await Promise.all([
-      pool.query(`
-        SELECT p.id, SUBSTRING(p.name, 1, 20) AS name_abbr, p.name AS name_full,
-               p.stock_fiscal, p.stock_mgmt, p.stock_real, p.fiscal_alert,
-               p.updated_at AS ref_date
-        FROM products p WHERE p.fiscal_alert = 1
-      `),
-      pool.query(`
-        SELECT p.id, SUBSTRING(p.name, 1, 20) AS name_abbr, p.name AS name_full,
-               p.stock_fiscal, p.stock_mgmt, p.stock_real, p.fiscal_alert,
-               a.changed_at AS ref_date
-        FROM products p INNER JOIN product_audit a ON a.product_id = p.id
-      `),
-    ]);
+    const refDate = 'COALESCE(a.changed_at, p.updated_at)';
 
-    const map = new Map();
-    for (const r of dstRes.rows) {
-      map.set(r.id, { ...r, has_fiscal_alert: 1, has_audit: 0 });
-    }
-    for (const r of altRes.rows) {
-      if (map.has(r.id)) {
-        const ex = map.get(r.id);
-        map.set(r.id, { ...ex, has_audit: 1, ref_date: r.ref_date });
-      } else {
-        map.set(r.id, { ...r, has_fiscal_alert: 0, has_audit: 1 });
-      }
-    }
-
-    let rows = Array.from(map.values()).map(r => {
-      const dt = r.ref_date ? new Date(r.ref_date) : null;
-      const data = dt ? dt.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—';
-      const hora = dt ? dt.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—';
-      return { ...r, data, hora };
-    });
-
-    if (flag === 'desativar')    rows = rows.filter(r => r.has_fiscal_alert === 1);
-    else if (flag === 'atualizar') rows = rows.filter(r => r.has_audit === 1);
-
-    if (date_from || date_to) {
-      rows = rows.filter(r => {
-        const d = r.ref_date ? new Date(r.ref_date).toISOString().substring(0, 10) : '';
-        if (!d) return false;
-        if (date_from && d < date_from) return false;
-        if (date_to   && d > date_to)   return false;
-        return true;
-      });
-    }
-
-    const SORT_KEY = {
-      id: 'id', name: 'name_full',
-      stock_fiscal: 'stock_fiscal', stock_mgmt: 'stock_mgmt', stock_real: 'stock_real',
-      changed_at: 'ref_date', fiscal_alert: 'fiscal_alert',
+    const SORT_MAP = {
+      id:           'p.id',
+      name:         'p.name',
+      stock_fiscal: 'p.stock_fiscal',
+      stock_mgmt:   'p.stock_mgmt',
+      stock_real:   'p.stock_real',
+      changed_at:   refDate,
+      fiscal_alert: 'p.fiscal_alert',
     };
-    const key = SORT_KEY[sort] || 'ref_date';
-    rows.sort((a, b) => {
-      const av = a[key] ?? '', bv = b[key] ?? '';
-      if (av < bv) return order === 'asc' ? -1 : 1;
-      if (av > bv) return order === 'asc' ? 1 : -1;
-      return 0;
-    });
+    const sortCol = SORT_MAP[sort] || refDate;
+    const sortDir = order === 'asc' ? 'ASC' : 'DESC';
+
+    const params = [];
+    const conditions = ['(p.fiscal_alert = 1 OR a.product_id IS NOT NULL)'];
+
+    if (flag === 'desativar')      conditions.push('p.fiscal_alert = 1');
+    else if (flag === 'atualizar') conditions.push('a.product_id IS NOT NULL');
+
+    if (date_from) {
+      params.push(date_from);
+      conditions.push(`${refDate} >= $${params.length}::date`);
+    }
+    if (date_to) {
+      params.push(date_to);
+      conditions.push(`${refDate} < ($${params.length}::date + INTERVAL '1 day')`);
+    }
+
+    const where = 'WHERE ' + conditions.join(' AND ');
+
+    const { rows } = await pool.query(`
+      SELECT
+        p.id,
+        SUBSTRING(p.name, 1, 20)                                          AS name_abbr,
+        p.name                                                             AS name_full,
+        p.stock_fiscal, p.stock_mgmt, p.stock_real, p.fiscal_alert,
+        CASE WHEN p.fiscal_alert = 1       THEN 1 ELSE 0 END              AS has_fiscal_alert,
+        CASE WHEN a.product_id IS NOT NULL THEN 1 ELSE 0 END              AS has_audit,
+        TO_CHAR(${refDate} AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY') AS data
+      FROM products p
+      LEFT JOIN product_audit a ON a.product_id = p.id
+      ${where}
+      ORDER BY ${sortCol} ${sortDir}
+    `, params);
 
     res.json({ total: rows.length, rows });
   } catch (err) {
