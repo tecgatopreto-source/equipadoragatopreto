@@ -17,7 +17,7 @@
     if (_initialized) return;
     _initialized = true;
 
-    if (!localStorage.getItem(KEY)) touch();
+    touch();
 
     if (isIdle()) { onExpire(); return; }
 

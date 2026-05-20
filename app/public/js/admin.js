@@ -62,6 +62,7 @@ async function api(method, path, body) {
   });
   const data = await res.json();
   if (res.status === 401) {
+    _sessionClear();
     localStorage.removeItem('gp_token');
     localStorage.removeItem('gp_user');
     location.href = BASE + '/login.html';
