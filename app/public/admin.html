@@ -131,10 +131,11 @@
       <div class="table-wrap">
         <div class="table-toolbar" style="flex-wrap:nowrap;gap:.5rem;overflow-x:auto">
           <input class="search-in" id="prod-q" placeholder="Buscar por nome ou código…" oninput="debSearch()" autocomplete="off" style="flex:1 1 0;min-width:100px">
-          <select id="cat-group" onchange="setCatFilter()"
-                  style="flex:1 1 0;min-width:120px;border:1.5px solid var(--border2);border-radius:4px;padding:.42rem .55rem;font-family:'Inter',sans-serif;font-size:.78rem;color:var(--text);background:var(--white);cursor:pointer">
-            <option value="">Todas as categorias</option>
-          </select>
+          <div class="cat-wrap" style="flex:1 1 0;min-width:120px;position:relative">
+            <input type="text" id="cat-group" class="search-in" placeholder="Todas as categorias" autocomplete="off" style="width:100%;box-sizing:border-box;padding-right:1.4rem">
+            <button class="cat-clear" id="cat-group-clear" tabindex="-1" style="display:none">×</button>
+            <div id="cat-group-dropdown" class="cat-dropdown" hidden></div>
+          </div>
           <div class="filter-group" id="status-group">
             <button class="filter-btn active" data-val="T"  onclick="setStatusFilter('T')">Todos</button>
             <button class="filter-btn"        data-val="0"  onclick="setStatusFilter('0')">Iguais</button>

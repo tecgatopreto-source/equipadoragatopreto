@@ -183,14 +183,23 @@ async function _fetchCategories() {
   return _cachedCategories;
 }
 
+function _renderAdminCatDropdown(q) {
+  const dd = document.getElementById('cat-group-dropdown');
+  const lc = q.toLowerCase();
+  const opts = [{ label: 'Todas as categorias', value: '' },
+    ..._cachedCategories.map(c => ({ label: c, value: c }))];
+  const visible = lc ? opts.filter(o => o.label.toLowerCase().includes(lc)) : opts;
+  if (!visible.length) { dd.hidden = true; return; }
+  dd.innerHTML = visible.map(o =>
+    `<div class="cat-option${o.value === catFilter ? ' cat-selected' : ''}" data-val="${o.value}">${o.label}</div>`
+  ).join('');
+  dd.hidden = false;
+}
+
 async function loadCatFilter() {
-  const sel = document.getElementById('cat-group');
-  const cats = await _fetchCategories();
-  const current = catFilter;
-  sel.innerHTML = '<option value="">Todas as categorias</option>' +
-    cats.map(c =>
-      `<option value="${c}"${c === current ? ' selected' : ''}>${c}</option>`
-    ).join('');
+  await _fetchCategories();
+  const input = document.getElementById('cat-group');
+  if (catFilter) input.value = catFilter;
 }
 
 function _populateFormCatSelect(currentCat) {
@@ -201,13 +210,17 @@ function _populateFormCatSelect(currentCat) {
     ).join('');
 }
 
-function setCatFilter() {
-  catFilter = document.getElementById('cat-group').value;
+function setCatFilter(val) {
+  catFilter = val;
+  document.getElementById('cat-group').value = val;
+  const clr = document.getElementById('cat-group-clear');
+  if (clr) clr.style.display = val ? '' : 'none';
   if (catFilter) localStorage.setItem('gp_admin_cat', catFilter);
   else localStorage.removeItem('gp_admin_cat');
   clearTimeout(filterTimer);
   filterTimer = setTimeout(() => loadProducts(1), 150);
 }
+
 
 function debSearch() {
   clearTimeout(debTimer);
@@ -1076,3 +1089,72 @@ navigate(initPage);
 // Carrega stats e action-stats explicitamente — navigate é síncrono, loadStats é async
 loadStats();
 loadActionStats();
+
+// ── Category autocomplete (após navigate para não bloquear init) ────────────
+(function initAdminCatAutocomplete() {
+  const input = document.getElementById('cat-group');
+  const dd    = document.getElementById('cat-group-dropdown');
+  const clr   = document.getElementById('cat-group-clear');
+  if (!input || !dd) return;
+
+  // Mostra X se já houver categoria salva
+  if (catFilter && clr) clr.style.display = '';
+
+  // Escapa overflow:hidden do .table-wrap e overflow-x:auto do .table-toolbar
+  document.body.appendChild(dd);
+
+  if (clr) clr.addEventListener('mousedown', function (e) {
+    e.preventDefault();
+    setCatFilter('');
+    dd.hidden = true;
+  });
+
+  function _pos() {
+    const r = input.getBoundingClientRect();
+    dd.style.top   = (r.bottom + 4) + 'px';
+    dd.style.left  = r.left + 'px';
+    dd.style.width = r.width + 'px';
+  }
+
+  input.addEventListener('focus', async function () {
+    if (!_cachedCategories.length) await _fetchCategories();
+    _renderAdminCatDropdown(this.value.trim());
+    _pos();
+  });
+  input.addEventListener('input', function () {
+    _renderAdminCatDropdown(this.value.trim());
+    _pos();
+  });
+
+  dd.addEventListener('mousedown', function (e) {
+    const opt = e.target.closest('.cat-option');
+    if (!opt) return;
+    e.preventDefault();
+    const val = opt.dataset.val;
+    input.value = val;
+    dd.hidden = true;
+    setCatFilter(val);
+  });
+
+  input.addEventListener('blur', function () {
+    setTimeout(() => { dd.hidden = true; }, 150);
+  });
+
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      this.value = catFilter;
+      dd.hidden = true;
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const first = dd.querySelector('.cat-option');
+      if (!first) return;
+      const val = first.dataset.val;
+      this.value = val;
+      dd.hidden = true;
+      setCatFilter(val);
+    }
+  });
+
+  window.addEventListener('scroll', () => { dd.hidden = true; }, true);
+  window.addEventListener('resize', () => { dd.hidden = true; });
+})();

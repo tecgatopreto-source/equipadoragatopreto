@@ -112,7 +112,7 @@ router.get('/', async (req, res) => {
 
   if (q.trim()) {
     params.push('%' + q.trim().toLowerCase() + '%');
-    conditions.push(`(p.name ILIKE $${params.length} OR p.id ILIKE $${params.length})`);
+    conditions.push(`(extensions.unaccent(p.name) ILIKE extensions.unaccent($${params.length}) OR p.id ILIKE $${params.length})`);
   }
   if (status !== 'T') {
     params.push(parseInt(status));

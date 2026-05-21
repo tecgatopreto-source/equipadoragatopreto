@@ -36,11 +36,13 @@ header{background:var(--white);border-bottom:1px solid var(--border);position:st
 .fb:hover{border-color:var(--text);color:var(--text)}
 .fb.active{background:var(--accent);border-color:var(--accent);color:#1a1814;font-weight:700}
 .fb-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
-.cat-select{padding:.35rem .75rem;border-radius:20px;border:1.5px solid var(--border2);background:var(--surface);color:var(--text2);font-family:'Inter',sans-serif;font-size:.68rem;font-weight:500;transition:border-color .15s,color .15s;max-width:200px;min-width:140px}
+.cat-select{padding:.35rem 1.5rem .35rem .75rem;border-radius:20px;border:1.5px solid var(--border2);background:var(--surface);color:var(--text2);font-family:'Inter',sans-serif;font-size:.68rem;font-weight:500;transition:border-color .15s,color .15s;max-width:200px;min-width:140px}
 .cat-select:focus{border-color:var(--accent);outline:none}
 .cat-select:hover{border-color:var(--text2);color:var(--text)}
 .cat-select::placeholder{color:var(--text2);opacity:.75}
 .cat-wrap{position:relative}
+.cat-clear{position:absolute;right:.45rem;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;line-height:1;padding:0;transition:color .15s}
+.cat-clear:hover{color:var(--text)}
 .cat-dropdown{position:absolute;top:calc(100% + 5px);left:0;min-width:100%;max-height:220px;overflow-y:auto;background:var(--white);border:1.5px solid var(--border2);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:300;padding:.25rem 0}
 .cat-option{padding:.42rem .85rem;font-size:.68rem;font-weight:500;color:var(--text2);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .1s,color .1s;border-radius:6px;margin:0 .25rem}
 .cat-option:hover{background:var(--surface);color:var(--text)}

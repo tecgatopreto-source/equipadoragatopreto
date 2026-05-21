@@ -527,13 +527,26 @@ function showToast(msg) {
 // ── Category autocomplete — dropdown customizado ───────────────────────────
 let _allCats = [];
 
+function _applyCatFilter(val) {
+  currentCatLabel = val;
+  document.getElementById('cat-filter').value = val;
+  document.getElementById('cat-clear').style.display = val ? '' : 'none';
+  if (val) localStorage.setItem('gp_catalog_cat', val);
+  else localStorage.removeItem('gp_catalog_cat');
+  document.getElementById('cat-dropdown').hidden = true;
+  fetchProducts(1, true);
+}
+
 (async function buildCatFilter() {
   try {
     const r = await fetch(BASE + '/api/products/categories');
     const d = await r.json();
     _allCats = d.categories || [];
   } catch (_) {}
-  if (currentCatLabel) document.getElementById('cat-filter').value = currentCatLabel;
+  if (currentCatLabel) {
+    document.getElementById('cat-filter').value = currentCatLabel;
+    document.getElementById('cat-clear').style.display = '';
+  }
 })();
 
 function _renderCatDropdown(q) {
@@ -559,13 +572,7 @@ document.getElementById('cat-dropdown').addEventListener('mousedown', function (
   const opt = e.target.closest('.cat-option');
   if (!opt) return;
   e.preventDefault();
-  const val = opt.dataset.val;
-  currentCatLabel = val;
-  document.getElementById('cat-filter').value = val;
-  if (val) localStorage.setItem('gp_catalog_cat', val);
-  else localStorage.removeItem('gp_catalog_cat');
-  document.getElementById('cat-dropdown').hidden = true;
-  fetchProducts(1, true);
+  _applyCatFilter(opt.dataset.val);
 });
 document.getElementById('cat-filter').addEventListener('blur', function () {
   setTimeout(() => { document.getElementById('cat-dropdown').hidden = true; }, 150);
@@ -578,14 +585,12 @@ document.getElementById('cat-filter').addEventListener('keydown', function (e) {
     e.preventDefault();
     const first = document.querySelector('#cat-dropdown .cat-option');
     if (!first) return;
-    const val = first.dataset.val;
-    currentCatLabel = val;
-    this.value = val;
-    if (val) localStorage.setItem('gp_catalog_cat', val);
-    else localStorage.removeItem('gp_catalog_cat');
-    document.getElementById('cat-dropdown').hidden = true;
-    fetchProducts(1, true);
+    _applyCatFilter(first.dataset.val);
   }
+});
+document.getElementById('cat-clear').addEventListener('mousedown', function (e) {
+  e.preventDefault();
+  _applyCatFilter('');
 });
 
 // ── Init ───────────────────────────────────────────────────────────────────
