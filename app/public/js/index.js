@@ -58,31 +58,47 @@ async function fetchProducts(page = 1, reset = false) {
   loading = true;
   document.getElementById('lm').disabled = true;
 
-  try {
-    const params = new URLSearchParams({ q: currentQ, status: 'T', page, limit: LIMIT });
-    if (currentDisabled !== '') params.append('disabled', currentDisabled);
-    if (currentCatLabel) params.append('cat', currentCatLabel);
-    const data = await apiFetch('/api/products?' + params);
+  const maxAttempts = reset ? 3 : 1;
+  let lastErr = null;
 
-    if (!data || !Array.isArray(data.products)) throw new Error('Resposta inválida da API');
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (attempt > 1) await new Promise(r => setTimeout(r, 1500 * (attempt - 1)));
 
-    currentTotal = data.total; currentPage = data.page;
-    if (reset) document.getElementById('grid').innerHTML = '';
-    renderCards(data.products);
-    updateCounts(data.total, data.products.length, reset ? 0 : (page - 1) * LIMIT);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
 
-    const hasMore = page * LIMIT < currentTotal;
-    document.getElementById('lmw').style.display = hasMore ? '' : 'none';
-  } catch (err) {
-    console.error('Erro ao carregar produtos:', err);
-    if (reset) {
-      document.getElementById('grid').innerHTML =
-        '<div class="empty"><h3>Erro ao carregar produtos</h3><p>Verifique a conexão ou recarregue a página.</p></div>';
+    try {
+      const params = new URLSearchParams({ q: currentQ, status: 'T', page, limit: LIMIT });
+      if (currentDisabled !== '') params.append('disabled', currentDisabled);
+      if (currentCatLabel) params.append('cat', currentCatLabel);
+      const data = await apiFetch('/api/products?' + params, { signal: controller.signal });
+
+      if (!data || !Array.isArray(data.products)) throw new Error('Resposta inválida da API');
+
+      currentTotal = data.total; currentPage = data.page;
+      if (reset) document.getElementById('grid').innerHTML = '';
+      renderCards(data.products);
+      updateCounts(data.total, data.products.length, reset ? 0 : (page - 1) * LIMIT);
+
+      const hasMore = page * LIMIT < currentTotal;
+      document.getElementById('lmw').style.display = hasMore ? '' : 'none';
+      lastErr = null;
+      break;
+    } catch (err) {
+      console.error(`Erro ao carregar produtos (tentativa ${attempt}/${maxAttempts}):`, err);
+      lastErr = err;
+    } finally {
+      clearTimeout(timer);
     }
-  } finally {
-    document.getElementById('lm').disabled = false;
-    loading = false;
   }
+
+  if (lastErr && reset) {
+    document.getElementById('grid').innerHTML =
+      '<div class="empty"><h3>Erro ao carregar produtos</h3><p>Verifique a conexão ou recarregue a página.</p></div>';
+  }
+
+  document.getElementById('lm').disabled = false;
+  loading = false;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────

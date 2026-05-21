@@ -32,11 +32,13 @@ async function initDb() {
     ssl: { rejectUnauthorized: false },
     max: 20,
     idleTimeoutMillis: 60000,
+    connectionTimeoutMillis: 5000,
   });
 
   pool.on('connect', client => {
     client.query('SET search_path TO "CatalogoProdutos"');
     client.query("SET timezone = 'America/Sao_Paulo'");
+    client.query("SET statement_timeout = '8000'");
   });
 }
 
