@@ -4,6 +4,7 @@ const fs      = require('fs');
 const multer  = require('multer');
 const { getDb } = require('../db/schema');
 const { authenticate, requireAdmin } = require('../middleware/auth');
+const cache = require('../lib/cache');
 
 const PROD_IMG_DIR = path.join(
   process.env.UPLOAD_DIR || path.join(__dirname, '..', 'uploads'),
@@ -35,14 +36,38 @@ function calcStatus(stockFiscal, stockMgmt) {
   return (stockFiscal == stockMgmt) ? 0 : 1;
 }
 
+const TTL_STATS      = 2  * 60 * 1000;
+const TTL_CATEGORIES = 10 * 60 * 1000;
+const TTL_PRODUCTS   = 60 * 1000;
+const TTL_ACTION     = 60 * 1000;
+
+async function _invalidateAll(pool) {
+  cache.clear('products:');
+  cache.clear('stats');
+  cache.clear('action-stats');
+  try {
+    await pool.query('REFRESH MATERIALIZED VIEW "CatalogoProdutos".product_stats');
+  } catch (e) {
+    console.error('[cache] REFRESH MATERIALIZED VIEW falhou:', e.message);
+  }
+}
+
+function _invalidateImages() {
+  cache.clear('products:');
+}
+
 // ── GET /api/products/categories ──────────────────────────────────────────
 router.get('/categories', async (_req, res) => {
+  const cached = cache.get('categories');
+  if (cached) return res.json(cached);
   const pool = getDb();
   try {
     const { rows } = await pool.query(
       'SELECT DISTINCT categoria FROM products WHERE categoria IS NOT NULL ORDER BY categoria'
     );
-    res.json({ categories: rows.map(r => r.categoria) });
+    const result = { categories: rows.map(r => r.categoria) };
+    cache.set('categories', result, TTL_CATEGORIES);
+    res.json(result);
   } catch (err) {
     console.error('GET /categories error:', err);
     res.status(500).json({ error: 'Erro ao buscar categorias.' });
@@ -51,8 +76,12 @@ router.get('/categories', async (_req, res) => {
 
 // ── GET /api/products ──────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
-  const pool = getDb();
   const { q = '', status = 'T', page = 1, limit = 60, sort = 'id', order = 'asc' } = req.query;
+  const { fiscal_alert: _cfa, disabled: _cdis, cat: _ccat } = req.query;
+  const cacheKey = `products:${q}|${status}|${page}|${limit}|${sort}|${order}|${_cfa ?? ''}|${_cdis ?? ''}|${_ccat ?? ''}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return res.json(cached);
+  const pool = getDb();
   const off = (parseInt(page) - 1) * parseInt(limit);
 
   const SORT_MAP = {
@@ -134,38 +163,41 @@ router.get('/', async (req, res) => {
     const total = parseInt(countResult.rows[0].n);
     const rows = dataResult.rows;
 
-    res.json({ total, page: parseInt(page), limit: parseInt(limit), products: rows });
+    const result = { total, page: parseInt(page), limit: parseInt(limit), products: rows };
+    cache.set(cacheKey, result, TTL_PRODUCTS);
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // ── GET /api/products/stats ────────────────────────────────────────────────
-router.get('/stats', async (req, res) => {
+router.get('/stats', async (_req, res) => {
+  const cached = cache.get('stats');
+  if (cached) return res.json(cached);
   try {
     const pool = getDb();
-    const { rows } = await pool.query(`
-      SELECT
-        COUNT(*) as total,
-        SUM(CASE WHEN status=0 THEN 1 ELSE 0 END) as iguais,
-        SUM(CASE WHEN status=1 THEN 1 ELSE 0 END) as divergentes,
-        SUM(CASE WHEN status=2 THEN 1 ELSE 0 END) as so_fiscal
-      FROM products
-    `);
+    const { rows } = await pool.query(
+      'SELECT total, iguais, divergentes, so_fiscal FROM product_stats'
+    );
     const s = rows[0];
-    res.json({
+    const result = {
       total:       parseInt(s.total),
       iguais:      parseInt(s.iguais),
       divergentes: parseInt(s.divergentes),
       so_fiscal:   parseInt(s.so_fiscal),
-    });
+    };
+    cache.set('stats', result, TTL_STATS);
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // ── GET /api/products/action-stats ────────────────────────────────────────
-router.get('/action-stats', authenticate, async (req, res) => {
+router.get('/action-stats', authenticate, async (_req, res) => {
+  const cached = cache.get('action-stats');
+  if (cached) return res.json(cached);
   try {
     const pool = getDb();
     const [altRes, dstRes] = await Promise.all([
@@ -174,7 +206,9 @@ router.get('/action-stats', authenticate, async (req, res) => {
     ]);
     const alteracoes = parseInt(altRes.rows[0].alteracoes);
     const desativar  = parseInt(dstRes.rows[0].desativar);
-    res.json({ alteracoes, desativar, atualizar: alteracoes });
+    const result = { alteracoes, desativar, atualizar: alteracoes };
+    cache.set('action-stats', result, TTL_ACTION);
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -296,6 +330,7 @@ router.patch('/:id/resolve-alert', requireAdmin, async (req, res) => {
       pool.query(`UPDATE products SET fiscal_alert = 0, updated_at = NOW() WHERE id = $1`, [req.params.id]),
       pool.query(`UPDATE product_audit SET fiscal_alert = 0, changed_at = NOW() WHERE product_id = $1`, [req.params.id]),
     ]);
+    await _invalidateAll(pool);
     res.json({ message: 'Alerta resolvido' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -336,6 +371,7 @@ router.post('/', requireAdmin, async (req, res) => {
       [id, name, price_fiscal ?? null, price_mgmt ?? null,
        stock_fiscal ?? null, stock_mgmt ?? null, stock_real ?? null, autoStatus, categoria || null]
     );
+    await _invalidateAll(pool);
     res.status(201).json({ message: 'Produto criado', id });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -409,6 +445,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
       );
     }
 
+    await _invalidateAll(pool);
     res.json({ message: 'Produto atualizado', changed });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -421,6 +458,7 @@ router.delete('/:id', requireAdmin, async (req, res) => {
     const pool = getDb();
     const result = await pool.query('DELETE FROM products WHERE id = $1', [req.params.id]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Produto não encontrado' });
+    await _invalidateAll(pool);
     res.json({ message: 'Produto removido' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -444,6 +482,7 @@ router.post('/:id/images/upload', authenticate, imgUpload.single('image'), async
       'INSERT INTO product_images (product_id, url, is_pinned, is_manual) VALUES ($1, $2, 1, 1) RETURNING id',
       [req.params.id, url]
     );
+    _invalidateImages();
     res.status(201).json({ id: ins[0].id, url, message: 'Imagem salva' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -471,6 +510,7 @@ router.post('/:id/images', authenticate, async (req, res) => {
       'INSERT INTO product_images (product_id, url, is_pinned, is_manual) VALUES ($1, $2, $3, $4) RETURNING id',
       [req.params.id, url, is_pinned ? 1 : 0, is_manual ? 1 : 0]
     );
+    _invalidateImages();
     res.status(201).json({ id: ins[0].id, message: 'Imagem salva' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -487,6 +527,7 @@ router.put('/:id/images/:imgId/pin', authenticate, async (req, res) => {
       [req.params.imgId, req.params.id]
     );
     if (result.rowCount === 0) return res.status(404).json({ error: 'Imagem não encontrada' });
+    _invalidateImages();
     res.json({ message: 'Imagem fixada' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -502,6 +543,7 @@ router.delete('/:id/images/:imgId', authenticate, async (req, res) => {
       [req.params.imgId, req.params.id]
     );
     if (result.rowCount === 0) return res.status(404).json({ error: 'Imagem não encontrada' });
+    _invalidateImages();
     res.json({ message: 'Imagem removida' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -513,6 +555,7 @@ router.delete('/:id/images', authenticate, async (req, res) => {
   try {
     const pool = getDb();
     await pool.query('DELETE FROM product_images WHERE product_id=$1', [req.params.id]);
+    _invalidateImages();
     res.json({ message: 'Imagens removidas — próxima abertura buscará novamente' });
   } catch (err) {
     res.status(500).json({ error: err.message });

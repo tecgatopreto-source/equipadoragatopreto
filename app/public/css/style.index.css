@@ -36,10 +36,15 @@ header{background:var(--white);border-bottom:1px solid var(--border);position:st
 .fb:hover{border-color:var(--text);color:var(--text)}
 .fb.active{background:var(--accent);border-color:var(--accent);color:#1a1814;font-weight:700}
 .fb-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
-.cat-select{padding:.35rem 1.8rem .35rem .75rem;border-radius:20px;border:1.5px solid var(--border2);background:var(--surface);color:var(--text2);font-family:'Inter',sans-serif;font-size:.68rem;font-weight:500;cursor:pointer;transition:border-color .15s,color .15s;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a8680'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right .55rem center;max-width:200px}
+.cat-select{padding:.35rem .75rem;border-radius:20px;border:1.5px solid var(--border2);background:var(--surface);color:var(--text2);font-family:'Inter',sans-serif;font-size:.68rem;font-weight:500;transition:border-color .15s,color .15s;max-width:200px;min-width:140px}
 .cat-select:focus{border-color:var(--accent);outline:none}
 .cat-select:hover{border-color:var(--text2);color:var(--text)}
-.cat-select option{background:var(--surface);color:var(--text2)}
+.cat-select::placeholder{color:var(--text2);opacity:.75}
+.cat-wrap{position:relative}
+.cat-dropdown{position:absolute;top:calc(100% + 5px);left:0;min-width:100%;max-height:220px;overflow-y:auto;background:var(--white);border:1.5px solid var(--border2);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:300;padding:.25rem 0}
+.cat-option{padding:.42rem .85rem;font-size:.68rem;font-weight:500;color:var(--text2);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .1s,color .1s;border-radius:6px;margin:0 .25rem}
+.cat-option:hover{background:var(--surface);color:var(--text)}
+.cat-option.cat-selected{color:var(--accent);font-weight:600}
 .fd-all{background:var(--text2)}.fd-eq{background:var(--green)}.fd-diff{background:var(--red)}.fd-fi{background:var(--amber)}
 
 .toolbar{padding:.45rem 2rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:var(--white);flex-shrink:0}

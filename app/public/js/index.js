@@ -524,26 +524,68 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-// ── Category select — carregada do banco para incluir categorias dinâmicas ─
-(async function buildCatSelect() {
-  const sel = document.getElementById('cat-filter');
-  let cats = [];
+// ── Category autocomplete — dropdown customizado ───────────────────────────
+let _allCats = [];
+
+(async function buildCatFilter() {
   try {
     const r = await fetch(BASE + '/api/products/categories');
     const d = await r.json();
-    cats = d.categories || [];
-  } catch (_) {
-    cats = [];
-  }
-  sel.innerHTML = '<option value="">Todas as categorias</option>' +
-    cats.map(c => `<option value="${c}"${c === currentCatLabel ? ' selected' : ''}>${c}</option>`).join('');
+    _allCats = d.categories || [];
+  } catch (_) {}
+  if (currentCatLabel) document.getElementById('cat-filter').value = currentCatLabel;
 })();
 
-document.getElementById('cat-filter').addEventListener('change', function () {
-  currentCatLabel = this.value;
-  if (currentCatLabel) localStorage.setItem('gp_catalog_cat', currentCatLabel);
+function _renderCatDropdown(q) {
+  const dd = document.getElementById('cat-dropdown');
+  const lc = q.toLowerCase();
+  const opts = [{ label: 'Todas as categorias', value: '' },
+    ..._allCats.map(c => ({ label: c, value: c }))];
+  const visible = lc ? opts.filter(o => o.label.toLowerCase().includes(lc)) : opts;
+  if (!visible.length) { dd.hidden = true; return; }
+  dd.innerHTML = visible.map(o =>
+    `<div class="cat-option${o.value === currentCatLabel ? ' cat-selected' : ''}" data-val="${o.value}">${o.label}</div>`
+  ).join('');
+  dd.hidden = false;
+}
+
+document.getElementById('cat-filter').addEventListener('focus', function () {
+  _renderCatDropdown(this.value.trim());
+});
+document.getElementById('cat-filter').addEventListener('input', function () {
+  _renderCatDropdown(this.value.trim());
+});
+document.getElementById('cat-dropdown').addEventListener('mousedown', function (e) {
+  const opt = e.target.closest('.cat-option');
+  if (!opt) return;
+  e.preventDefault();
+  const val = opt.dataset.val;
+  currentCatLabel = val;
+  document.getElementById('cat-filter').value = val;
+  if (val) localStorage.setItem('gp_catalog_cat', val);
   else localStorage.removeItem('gp_catalog_cat');
+  document.getElementById('cat-dropdown').hidden = true;
   fetchProducts(1, true);
+});
+document.getElementById('cat-filter').addEventListener('blur', function () {
+  setTimeout(() => { document.getElementById('cat-dropdown').hidden = true; }, 150);
+});
+document.getElementById('cat-filter').addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') {
+    this.value = currentCatLabel;
+    document.getElementById('cat-dropdown').hidden = true;
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    const first = document.querySelector('#cat-dropdown .cat-option');
+    if (!first) return;
+    const val = first.dataset.val;
+    currentCatLabel = val;
+    this.value = val;
+    if (val) localStorage.setItem('gp_catalog_cat', val);
+    else localStorage.removeItem('gp_catalog_cat');
+    document.getElementById('cat-dropdown').hidden = true;
+    fetchProducts(1, true);
+  }
 });
 
 // ── Init ───────────────────────────────────────────────────────────────────

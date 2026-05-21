@@ -27,7 +27,10 @@
       <button class="sw-clear" id="qc">×</button>
     </div>
     <div class="filters">
-      <select id="cat-filter" class="cat-select"></select>
+      <div class="cat-wrap">
+        <input type="text" id="cat-filter" class="cat-select" placeholder="Todas as categorias" autocomplete="off">
+        <div id="cat-dropdown" class="cat-dropdown" hidden></div>
+      </div>
       <div id="cat-disabled-group" style="display:flex;gap:.3rem;flex-wrap:wrap">
         <button class="fb active" data-disabled="">Todos</button>
         <button class="fb" data-disabled="0">Ativos</button>
