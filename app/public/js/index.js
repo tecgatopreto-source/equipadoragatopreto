@@ -21,6 +21,7 @@ if (token) _sessionInit(logout);
 // ── State ──────────────────────────────────────────────────────────────────
 const _mpSvgDefault = document.getElementById('mp-svg')?.innerHTML || '';
 let currentPage = 1, currentTotal = 0, loading = false;
+let _fetchController = null, _fetchGen = 0;
 const LIMIT = 24;
 let currentDisabled  = localStorage.getItem('gp_catalog_disabled') || '';
 let currentQ         = localStorage.getItem('gp_catalog_q')        || '';
@@ -54,17 +55,28 @@ async function fetchStats() {
 
 // ── Products list ──────────────────────────────────────────────────────────
 async function fetchProducts(page = 1, reset = false) {
+  // Troca de filtro/busca cancela a requisição anterior e assume o controle
+  if (reset && _fetchController) {
+    _fetchController.abort();
+    _fetchController = null;
+    loading = false;
+  }
+
   if (loading) return;
   loading = true;
   document.getElementById('lm').disabled = true;
 
+  const myGen = ++_fetchGen;
   const maxAttempts = reset ? 3 : 1;
   let lastErr = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (myGen !== _fetchGen) break; // requisição mais nova assumiu o controle
     if (attempt > 1) await new Promise(r => setTimeout(r, 1500 * (attempt - 1)));
+    if (myGen !== _fetchGen) break;
 
     const controller = new AbortController();
+    _fetchController = controller;
     const timer = setTimeout(() => controller.abort(), 10000);
 
     try {
@@ -74,6 +86,8 @@ async function fetchProducts(page = 1, reset = false) {
       const data = await apiFetch('/api/products?' + params, { signal: controller.signal });
 
       if (!data || !Array.isArray(data.products)) throw new Error('Resposta inválida da API');
+
+      if (myGen !== _fetchGen) break;
 
       currentTotal = data.total; currentPage = data.page;
       if (reset) document.getElementById('grid').innerHTML = '';
@@ -85,12 +99,15 @@ async function fetchProducts(page = 1, reset = false) {
       lastErr = null;
       break;
     } catch (err) {
+      if (myGen !== _fetchGen) break; // cancelado por requisição mais nova, para silenciosamente
       console.error(`Erro ao carregar produtos (tentativa ${attempt}/${maxAttempts}):`, err);
       lastErr = err;
     } finally {
       clearTimeout(timer);
     }
   }
+
+  if (myGen !== _fetchGen) return; // outra requisição assumiu — não toca no estado
 
   if (lastErr && reset) {
     document.getElementById('grid').innerHTML =
