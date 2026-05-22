@@ -67,9 +67,16 @@ app.get('/*',           (_, res) => res.send(indexHtml));
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 // initDb() resolve o hostname para IPv4 e cria o pool com host literal (sem DNS no pg)
-const { initDb } = require('./db/schema');
+const { initDb, getDb } = require('./db/schema');
 (async () => {
   await initDb();
+  // Abre a primeira conexão do pool antes de receber tráfego, evitando cold start
+  try {
+    await getDb().query('SELECT 1');
+    console.log('[db] Pool aquecido');
+  } catch (e) {
+    console.warn('[db] Aquecimento falhou (servidor sobe mesmo assim):', e.message);
+  }
   app.listen(PORT, () => {
     console.log(`\n Gato Preto — Catálogo Online`);
     console.log(`   Local:     http://localhost:${PORT}/`);
