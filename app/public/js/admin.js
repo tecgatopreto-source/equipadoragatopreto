@@ -938,6 +938,7 @@ async function uploadPdf(type, file) {
 
   document.getElementById('file-' + type).value = '';
   loadImportHistory();
+  loadStats();
 }
 
 async function loadImportHistory() {

@@ -6,6 +6,7 @@ const fs = require('fs');
 const { getDb } = require('../db/schema');
 const { requireAdmin } = require('../middleware/auth');
 const { classifyProduct } = require('../lib/categories');
+const cache = require('../lib/cache');
 
 const router = express.Router();
 
@@ -147,7 +148,7 @@ router.post('/upload/:type', requireAdmin, async (req, res) => {
     }
   }
 
-  // 6. Recalcula status e grava histórico
+  // 6. Recalcula status, invalida cache e grava histórico
   try {
     await pool.query(`
       UPDATE products SET status = CASE
@@ -157,6 +158,14 @@ router.post('/upload/:type', requireAdmin, async (req, res) => {
         ELSE 1
       END
     `);
+    cache.clear('stats');
+    cache.clear('action-stats');
+    cache.clear('products:');
+    try {
+      await pool.query('REFRESH MATERIALIZED VIEW "CatalogoProdutos".product_stats');
+    } catch (e) {
+      console.error('[import] REFRESH MATERIALIZED VIEW falhou:', e.message);
+    }
     await pool.query(
       `INSERT INTO import_history (document_id, type, total_products, updated_products, skipped, status)
        VALUES ($1, $2, $3, $4, $5, $6)`,
