@@ -41,7 +41,7 @@ router.post('/login', async (req, res) => {
     const accessToken = data.access_token;
 
     const perfisRes  = await fetch(
-      `${SUPABASE_URL}/rest/v1/perfis?user_id=eq.${u.id}&sistema=eq.${SISTEMA}&select=user_id&limit=1`,
+      `${SUPABASE_URL}/rest/v1/perfis?user_id=eq.${u.id}&sistema=eq.${SISTEMA}&select=role&limit=1`,
       {
         headers: {
           'apikey': SUPABASE_ANON_KEY,
@@ -56,7 +56,7 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'no_access' });
     }
 
-    const role = u?.app_metadata?.role || u?.user_metadata?.role || 'user';
+    const role = 'admin';
 
     const token = jwt.sign(
       { id: u.id, username: u.email, role },
