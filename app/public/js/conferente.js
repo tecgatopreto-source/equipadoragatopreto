@@ -2,21 +2,21 @@
 
 const BASE = window.APP_BASE || '';
 /* ═══ STATE ══════════════════════════════════════════════════════════ */
-let token    = null;
 let products = [];
 let page     = 1;
 let total    = 0;
 const limit  = 20;
 let statusFilter  = 'T';
 let alertFilter   = false;
-let searchQuery   = '';
+let searchNameQuery = '';
+let searchCodeQuery = '';
 let currentProduct = null;
 let searchTimer   = null;
 
 /* ═══ AUTH ══════════════════════════════════════════════════════════ */
 function init() {
-  token = localStorage.getItem('gp_token');
-  if (token) {
+  const user = localStorage.getItem('gp_user');
+  if (user) {
     showApp();
   } else {
     showLogin();
@@ -31,15 +31,15 @@ function showLogin() {
 function showApp() {
   document.getElementById('screen-login').style.display = 'none';
   document.getElementById('screen-app').style.display   = 'block';
-  _sessionInit(logout);
+  const userData = JSON.parse(localStorage.getItem('gp_user') || 'null');
+  const userEl = document.getElementById('header-user');
+  if (userEl && userData?.username) userEl.textContent = userData.username;
   loadProducts(1);
 }
 
-function logout() {
-  _sessionClear();
-  localStorage.removeItem('gp_token');
+async function logout() {
+  try { await fetch(BASE + '/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
   localStorage.removeItem('gp_user');
-  token = null;
   showLogin();
 }
 
@@ -53,18 +53,16 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   try {
     const res  = await fetch(BASE + '/api/auth/login', {
       method:'POST',
+      credentials: 'same-origin',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
-        username: document.getElementById('lu').value,
+        email: document.getElementById('lu').value,
         password: document.getElementById('lp').value
       })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Erro ao fazer login');
-    token = data.token;
-    localStorage.setItem('gp_token', token);
     localStorage.setItem('gp_user', JSON.stringify(data.user));
-    localStorage.setItem('gp_last_activity', Date.now().toString());
     showApp();
   } catch (ex) {
     err.textContent = ex.message;
@@ -76,9 +74,14 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 });
 
 /* ═══ FILTERS ════════════════════════════════════════════════════════ */
-document.getElementById('search').addEventListener('input', (e) => {
+document.getElementById('search-name').addEventListener('input', (e) => {
   clearTimeout(searchTimer);
-  searchQuery = e.target.value.trim();
+  searchNameQuery = e.target.value.trim();
+  searchTimer = setTimeout(() => loadProducts(1), 350);
+});
+document.getElementById('search-code').addEventListener('input', (e) => {
+  clearTimeout(searchTimer);
+  searchCodeQuery = e.target.value.trim();
   searchTimer = setTimeout(() => loadProducts(1), 350);
 });
 
@@ -106,13 +109,14 @@ async function loadProducts(p = 1) {
     page: p, limit,
     sort: 'name', order: 'asc'
   });
-  if (searchQuery)  params.set('q', searchQuery);
+  if (searchNameQuery) params.set('name_q', searchNameQuery);
+  if (searchCodeQuery) params.set('code_q', searchCodeQuery);
   if (statusFilter !== 'T') params.set('status', statusFilter);
   if (alertFilter)  params.set('fiscal_alert', '1');
 
   try {
     const res  = await fetch(BASE + '/api/products?' + params, {
-      headers: token ? { Authorization: 'Bearer ' + token } : {}
+      credentials: 'same-origin',
     });
     if (res.status === 401) { logout(); return; }
     const data = await res.json();
@@ -128,10 +132,10 @@ async function loadProducts(p = 1) {
 function renderList() {
   const list = document.getElementById('product-list');
   if (!products.length) {
-    list.innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><p>Nenhum produto encontrado.</p></div>';
+    list.innerHTML = '<div class="empty-state"><svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg><p>Nenhum produto encontrado.</p></div>';
     return;
   }
-  list.innerHTML = products.map(p => {
+  list.innerHTML = products.map((p, i) => {
     const badge    = statusBadge(p.status);
     const alertTag = p.fiscal_alert ? `<span class="badge badge-alert">⚠️ Alerta</span>` : '';
     const realVal  = p.stock_real !== null && p.stock_real !== undefined
@@ -139,39 +143,35 @@ function renderList() {
       : `<span class="stock-value empty">—</span>`;
 
     return `
-    <div class="product-card" onclick="openSheet('${esc(p.id)}')">
-      <div class="card-top">
-        <div style="flex:1;min-width:0">
-          <div class="card-ref">${esc(p.id)}</div>
-          <div class="card-name">${esc(p.name)}</div>
+    <div class="product-card status-${p.status}" onclick="openSheet('${esc(p.id)}')" style="animation-delay:${Math.min(i,8)*30}ms">
+      <div class="card-side"></div>
+      <div class="card-body">
+        <div class="card-top">
+          <div class="card-meta">
+            <div class="card-ref">${esc(p.id)}</div>
+            <div class="card-name">${esc(p.name)}</div>
+            <div class="card-badges">${badge}${alertTag}</div>
+          </div>
+          <div class="card-chevron">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </div>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.3rem">
-          ${badge}
-          ${alertTag}
+        <div class="card-stocks">
+          <div class="stock-item">
+            <div class="stock-label">Est. Fiscal</div>
+            <div class="stock-value">${fmt(p.stock_fiscal)}</div>
+          </div>
+          <div class="stock-item">
+            <div class="stock-label">Est. Gerencial</div>
+            <div class="stock-value">${fmt(p.stock_mgmt)}</div>
+          </div>
+          <div class="stock-item real-col">
+            <div class="stock-label">Real</div>
+            ${realVal}
+          </div>
         </div>
-      </div>
-      <div class="card-stocks">
-        <div class="stock-item">
-          <div class="stock-label">Est. Fiscal</div>
-          <div class="stock-value">${fmt(p.stock_fiscal)}</div>
-        </div>
-        <div class="stock-item">
-          <div class="stock-label">Est. Gerencial</div>
-          <div class="stock-value">${fmt(p.stock_mgmt)}</div>
-        </div>
-        <div class="stock-item">
-          <div class="stock-label">Real</div>
-          ${realVal}
-        </div>
-      </div>
-      <div class="card-footer">
-        <span class="card-edit-hint">
-          Editar produto
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-          </svg>
-        </span>
       </div>
     </div>`;
   }).join('');
@@ -190,7 +190,6 @@ function renderPagination() {
 
   let html = `<button class="pg-btn" onclick="loadProducts(${page-1})" ${page===1?'disabled':''}>← Ant.</button>`;
 
-  // Show limited page buttons
   const start = Math.max(1, page - 2);
   const end   = Math.min(pages, page + 2);
   for (let i = start; i <= end; i++) {
@@ -202,12 +201,11 @@ function renderPagination() {
 
 /* ═══ BOTTOM SHEET ═══════════════════════════════════════════════════ */
 async function openSheet(id) {
-  // Find in current list or fetch
   let p = products.find(x => x.id === id);
   if (!p) {
     try {
-      const res = await fetch(BASE + `/api/products/${encodeURIComponent(id)}`,{
-        headers:{ Authorization:'Bearer '+token }
+      const res = await fetch(BASE + `/api/products/${encodeURIComponent(id)}`, {
+        credentials: 'same-origin',
       });
       p = await res.json();
     } catch { return; }
@@ -244,7 +242,6 @@ async function openSheet(id) {
   document.getElementById('sheet-overlay').classList.add('open');
   document.getElementById('bottom-sheet').classList.add('open');
 
-  // Focus input after animation
   setTimeout(() => inp.focus(), 350);
 }
 
@@ -252,7 +249,6 @@ function closeSheet() {
   document.getElementById('sheet-overlay').classList.remove('open');
   document.getElementById('bottom-sheet').classList.remove('open');
   currentProduct = null;
-  // Blur to dismiss keyboard
   document.activeElement?.blur();
 }
 
@@ -302,35 +298,30 @@ async function saveProduct() {
 
   errEl.style.display = 'none';
 
-  // Validate
-  if (rawVal !== '') {
-    const num = parseFloat(rawVal);
-    if (isNaN(num) || num < 0) {
-      errEl.textContent  = 'Valor inválido. Informe um número maior ou igual a zero.';
-      errEl.style.display = 'block';
-      inp.classList.add('invalid');
-      return;
-    }
+  if (rawVal === '') {
+    errEl.textContent  = 'Informe a contagem de estoque real.';
+    errEl.style.display = 'block';
+    inp.focus();
+    return;
+  }
+
+  const num = parseFloat(rawVal);
+  if (isNaN(num) || num < 0) {
+    errEl.textContent  = 'Valor inválido. Informe um número maior ou igual a zero.';
+    errEl.style.display = 'block';
+    inp.classList.add('invalid');
+    return;
   }
 
   btn.disabled    = true;
   btn.textContent = 'Salvando…';
 
   try {
-    const body = {
-      name:       currentProduct.name,
-      price_mgmt: currentProduct.price_mgmt,
-      status:     currentProduct.status
-    };
-    if (rawVal !== '') body.stock_real = parseFloat(rawVal);
-
-    const res = await fetch(BASE + `/api/products/${encodeURIComponent(currentProduct.id)}`, {
-      method:  'PUT',
-      headers: {
-        'Content-Type':  'application/json',
-        Authorization: 'Bearer ' + token
-      },
-      body: JSON.stringify(body)
+    const res = await fetch(BASE + `/api/products/${encodeURIComponent(currentProduct.id)}/stock-real`, {
+      method:  'PATCH',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stock_real: parseFloat(rawVal) })
     });
 
     if (res.status === 401) { logout(); return; }
@@ -395,12 +386,10 @@ function showToast(msg, type = '') {
 }
 
 /* ═══ KEYBOARD ═══════════════════════════════════════════════════════ */
-// Close sheet on Escape
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeSheet();
 });
 
-// Save on Enter inside real stock input
 document.getElementById('inp-real').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); saveProduct(); }
 });

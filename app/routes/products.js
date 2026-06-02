@@ -76,9 +76,9 @@ router.get('/categories', async (_req, res) => {
 
 // ── GET /api/products ──────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
-  const { q = '', status = 'T', page = 1, limit = 60, sort = 'id', order = 'asc' } = req.query;
+  const { q = '', name_q = '', code_q = '', status = 'T', page = 1, limit = 60, sort = 'id', order = 'asc' } = req.query;
   const { fiscal_alert: _cfa, disabled: _cdis, cat: _ccat } = req.query;
-  const cacheKey = `products:${q}|${status}|${page}|${limit}|${sort}|${order}|${_cfa ?? ''}|${_cdis ?? ''}|${_ccat ?? ''}`;
+  const cacheKey = `products:${q}|${name_q}|${code_q}|${status}|${page}|${limit}|${sort}|${order}|${_cfa ?? ''}|${_cdis ?? ''}|${_ccat ?? ''}`;
   const cached = cache.get(cacheKey);
   if (cached) return res.json(cached);
   const pool = getDb();
@@ -110,7 +110,13 @@ router.get('/', async (req, res) => {
   const params = [];
   const conditions = [];
 
-  if (q.trim()) {
+  if (code_q.trim()) {
+    params.push('%' + code_q.trim().toLowerCase() + '%');
+    conditions.push(`p.id ILIKE $${params.length}`);
+  } else if (name_q.trim()) {
+    params.push('%' + name_q.trim().toLowerCase() + '%');
+    conditions.push(`extensions.unaccent(p.name) ILIKE extensions.unaccent($${params.length})`);
+  } else if (q.trim()) {
     params.push('%' + q.trim().toLowerCase() + '%');
     conditions.push(`(extensions.unaccent(p.name) ILIKE extensions.unaccent($${params.length}) OR p.id ILIKE $${params.length})`);
   }
@@ -131,8 +137,18 @@ router.get('/', async (req, res) => {
 
   const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
 
+  // countParams snapshot before adding the exact-match param (used only in ORDER BY)
+  const countParams = [...params];
+
+  let orderBy;
+  if (code_q.trim()) {
+    params.push(code_q.trim().toLowerCase());
+    orderBy = `CASE WHEN LOWER(p.id) = $${params.length} THEN 0 ELSE 1 END, ${sortCol} ${sortDir}`;
+  } else {
+    orderBy = `${sortCol} ${sortDir}`;
+  }
+
   try {
-    const countParams = [...params];
     const dataParams = [...params, parseInt(limit), off];
 
     const [countResult, dataResult] = await Promise.all([
@@ -156,7 +172,7 @@ router.get('/', async (req, res) => {
       FROM products p
       LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_pinned = 1
       ${where}
-      ORDER BY ${sortCol} ${sortDir}
+      ORDER BY ${orderBy}
       LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}
     `, dataParams),
     ]);
@@ -452,6 +468,58 @@ router.put('/:id', requireAdmin, async (req, res) => {
   }
 });
 
+// ── PATCH /api/products/:id/stock-real (conferente) ───────────────────────
+router.patch('/:id/stock-real', authenticate, async (req, res) => {
+  try {
+    const pool = getDb();
+    const { stock_real } = req.body;
+
+    if (stock_real === undefined || stock_real === null || stock_real === '')
+      return res.status(400).json({ error: 'stock_real é obrigatório' });
+
+    const realVal = parseFloat(stock_real);
+    if (isNaN(realVal)) return res.status(400).json({ error: 'Valor inválido' });
+
+    const { rows: bRows } = await pool.query(
+      'SELECT stock_fiscal, stock_mgmt, snap_stock_mgmt, stock_real, fiscal_alert FROM products WHERE id = $1',
+      [req.params.id]
+    );
+    if (!bRows[0]) return res.status(404).json({ error: 'Produto não encontrado' });
+    const before = bRows[0];
+
+    const rule = applyStockRule(realVal, before.stock_mgmt, before.fiscal_alert);
+    if (rule.error) return res.status(400).json({ error: rule.error });
+
+    const newStockMgmt   = rule.stockMgmt;
+    const newFiscalAlert = rule.fiscalAlert;
+    const newStatus      = calcStatus(before.stock_fiscal, before.snap_stock_mgmt);
+
+    await pool.query(
+      `UPDATE products SET stock_real=$1, stock_mgmt=$2, fiscal_alert=$3, updated_at=NOW() WHERE id=$4`,
+      [realVal, newStockMgmt, newFiscalAlert, req.params.id]
+    );
+
+    const changed = realVal != before.stock_real || newStockMgmt != before.stock_mgmt || newFiscalAlert !== before.fiscal_alert;
+    if (changed) {
+      await pool.query(
+        `INSERT INTO product_audit (product_id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, changed_at)
+         SELECT id, name, stock_fiscal, $1, $2, $3, NOW() FROM products WHERE id = $4
+         ON CONFLICT(product_id) DO UPDATE SET
+           stock_mgmt   = EXCLUDED.stock_mgmt,
+           stock_real   = EXCLUDED.stock_real,
+           fiscal_alert = EXCLUDED.fiscal_alert,
+           changed_at   = EXCLUDED.changed_at`,
+        [newStockMgmt, realVal, newFiscalAlert, req.params.id]
+      );
+    }
+
+    await _invalidateAll(pool);
+    res.json({ message: 'Estoque real atualizado', stock_real: realVal, stock_mgmt: newStockMgmt });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── DELETE /api/products/:id ───────────────────────────────────────────────
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
@@ -559,6 +627,52 @@ router.delete('/:id/images', authenticate, async (req, res) => {
     res.json({ message: 'Imagens removidas — próxima abertura buscará novamente' });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/products/:id/search-images ──────────────────────────────────
+// Chamado pelo modal quando o produto não tem imagens em cache.
+// Busca no Google e persiste automaticamente.
+const _searching = new Set();
+
+router.get('/:id/search-images', async (req, res) => {
+  const id = req.params.id;
+  try {
+    const pool = getDb();
+
+    // Retorna cache se já há imagens
+    const cached = await pool.query(
+      'SELECT * FROM product_images WHERE product_id=$1 ORDER BY is_pinned DESC, id ASC',
+      [id]
+    );
+    if (cached.rows.length) {
+      return res.json({ images: cached.rows, source: 'cache' });
+    }
+
+    // Evita buscas simultâneas para o mesmo produto
+    if (_searching.has(id)) {
+      return res.json({ images: [], source: 'pending' });
+    }
+    _searching.add(id);
+
+    const prod = await pool.query(
+      'SELECT id, name, ean FROM "CatalogoProdutos".products WHERE id=$1',
+      [id]
+    );
+    if (!prod.rows.length) {
+      _searching.delete(id);
+      return res.status(404).json({ error: 'Produto não encontrado' });
+    }
+
+    const { searchAndSaveImages } = require('../lib/image-search');
+    const images = await searchAndSaveImages(prod.rows[0]);
+    _searching.delete(id);
+    _invalidateImages();
+    res.json({ images, source: 'google' });
+  } catch (err) {
+    _searching.delete(id);
+    const isConfig = err.message.includes('não configurados');
+    res.status(isConfig ? 501 : 502).json({ error: err.message, source: 'error' });
   }
 });
 

@@ -21,10 +21,17 @@
     </div>
   </div>
   <div class="header-search">
-    <div class="sw">
-      <span class="sw-icon">🔍</span>
-      <input type="text" id="q" placeholder="Buscar por nome ou código…" autocomplete="off">
-      <button class="sw-clear" id="qc">×</button>
+    <div class="search-row">
+      <div class="sw">
+        <span class="sw-icon">🔍</span>
+        <input type="text" id="q-name" placeholder="Buscar por nome…" autocomplete="off">
+        <button class="sw-clear" id="qc-name" style="display:none">×</button>
+      </div>
+      <div class="sw">
+        <span class="sw-icon">#</span>
+        <input type="text" id="q-code" placeholder="Buscar por código…" autocomplete="off">
+        <button class="sw-clear" id="qc-code" style="display:none">×</button>
+      </div>
     </div>
     <div class="filters">
       <div class="cat-wrap">
@@ -120,7 +127,6 @@
 <div class="toast" id="toast"></div>
 
 <script src="js/product-category-svg.js"></script>
-<script src="js/session.js"></script>
 <script src="js/index.js"></script>
 </body>
 </html>

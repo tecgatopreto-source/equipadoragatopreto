@@ -1,6 +1,5 @@
 // ── Auth ───────────────────────────────────────────────────────────────────
 const BASE = window.APP_BASE || '';
-const token = localStorage.getItem('gp_token');
 const user  = JSON.parse(localStorage.getItem('gp_user') || 'null');
 
 function renderAuthActions() {
@@ -12,11 +11,11 @@ function renderAuthActions() {
     el.innerHTML = `<a class="btn-login" href="${BASE}/login.html">Entrar</a>`;
   }
 }
-function logout() {
-  _sessionClear();
-  localStorage.removeItem('gp_token'); localStorage.removeItem('gp_user'); location.reload();
+async function logout() {
+  try { await fetch(BASE + '/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
+  localStorage.removeItem('gp_user');
+  location.reload();
 }
-if (token) _sessionInit(logout);
 
 // ── State ──────────────────────────────────────────────────────────────────
 const _mpSvgDefault = document.getElementById('mp-svg')?.innerHTML || '';
@@ -24,7 +23,8 @@ let currentPage = 1, currentTotal = 0, loading = false;
 let _fetchController = null, _fetchGen = 0;
 const LIMIT = 24;
 let currentDisabled  = localStorage.getItem('gp_catalog_disabled') || '';
-let currentQ         = localStorage.getItem('gp_catalog_q')        || '';
+let currentNameQ     = localStorage.getItem('gp_catalog_name_q')   || '';
+let currentCodeQ     = localStorage.getItem('gp_catalog_code_q')   || '';
 let currentCatLabel  = localStorage.getItem('gp_catalog_cat') || '';
 
 // Modal image state
@@ -38,10 +38,12 @@ let _modalProductIsDisabled = 0;
 
 // ── Fetch helpers ──────────────────────────────────────────────────────────
 async function apiFetch(path, opts = {}) {
-  const headers = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = 'Bearer ' + token;
   const baseUrl = window.APP_BASE || '';
-  const r = await fetch(baseUrl + path, { ...opts, headers: { ...headers, ...(opts.headers || {}) } });
+  const r = await fetch(baseUrl + path, {
+    credentials: 'same-origin',
+    ...opts,
+    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+  });
   return r.json();
 }
 
@@ -80,7 +82,9 @@ async function fetchProducts(page = 1, reset = false) {
     const timer = setTimeout(() => controller.abort(), 10000);
 
     try {
-      const params = new URLSearchParams({ q: currentQ, status: 'T', page, limit: LIMIT });
+      const params = new URLSearchParams({ status: 'T', page, limit: LIMIT });
+      if (currentNameQ) params.set('name_q', currentNameQ);
+      if (currentCodeQ) params.set('code_q', currentCodeQ);
       if (currentDisabled !== '') params.append('disabled', currentDisabled);
       if (currentCatLabel) params.append('cat', currentCatLabel);
       const data = await apiFetch('/api/products?' + params, { signal: controller.signal });
@@ -513,20 +517,38 @@ document.addEventListener('keydown', e => {
 
 // ── Search debounce ────────────────────────────────────────────────────────
 let debTimer;
-document.getElementById('q').addEventListener('input', e => {
+document.getElementById('q-name').addEventListener('input', e => {
   clearTimeout(debTimer);
-  document.getElementById('qc').style.display = e.target.value ? '' : 'none';
+  document.getElementById('qc-name').style.display = e.target.value ? '' : 'none';
   debTimer = setTimeout(() => {
-    currentQ = e.target.value;
-    localStorage.setItem('gp_catalog_q', currentQ);
+    currentNameQ = e.target.value;
+    if (currentNameQ) localStorage.setItem('gp_catalog_name_q', currentNameQ);
+    else localStorage.removeItem('gp_catalog_name_q');
     fetchProducts(1, true);
   }, 380);
 });
-document.getElementById('qc').addEventListener('click', () => {
-  document.getElementById('q').value = '';
-  document.getElementById('qc').style.display = 'none';
-  currentQ = '';
-  localStorage.removeItem('gp_catalog_q');
+document.getElementById('qc-name').addEventListener('click', () => {
+  document.getElementById('q-name').value = '';
+  document.getElementById('qc-name').style.display = 'none';
+  currentNameQ = '';
+  localStorage.removeItem('gp_catalog_name_q');
+  fetchProducts(1, true);
+});
+document.getElementById('q-code').addEventListener('input', e => {
+  clearTimeout(debTimer);
+  document.getElementById('qc-code').style.display = e.target.value ? '' : 'none';
+  debTimer = setTimeout(() => {
+    currentCodeQ = e.target.value;
+    if (currentCodeQ) localStorage.setItem('gp_catalog_code_q', currentCodeQ);
+    else localStorage.removeItem('gp_catalog_code_q');
+    fetchProducts(1, true);
+  }, 380);
+});
+document.getElementById('qc-code').addEventListener('click', () => {
+  document.getElementById('q-code').value = '';
+  document.getElementById('qc-code').style.display = 'none';
+  currentCodeQ = '';
+  localStorage.removeItem('gp_catalog_code_q');
   fetchProducts(1, true);
 });
 
@@ -627,9 +649,13 @@ document.getElementById('cat-clear').addEventListener('mousedown', function (e) 
 });
 
 // ── Init ───────────────────────────────────────────────────────────────────
-if (currentQ) {
-  document.getElementById('q').value = currentQ;
-  document.getElementById('qc').style.display = '';
+if (currentNameQ) {
+  document.getElementById('q-name').value = currentNameQ;
+  document.getElementById('qc-name').style.display = '';
+}
+if (currentCodeQ) {
+  document.getElementById('q-code').value = currentCodeQ;
+  document.getElementById('qc-code').style.display = '';
 }
 document.querySelectorAll('#cat-disabled-group .fb').forEach(b =>
   b.classList.toggle('active', b.dataset.disabled === currentDisabled));

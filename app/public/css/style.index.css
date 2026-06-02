@@ -24,6 +24,7 @@ header{background:var(--white);border-bottom:1px solid var(--border);position:st
 .btn-admin{padding:.38rem .9rem;border:1.5px solid var(--accent);border-radius:5px;background:rgba(97,211,48,.08);font-family:'Inter',sans-serif;font-size:.7rem;font-weight:700;color:var(--accent);cursor:pointer;text-decoration:none;transition:all .15s;letter-spacing:.02em}
 .btn-admin:hover{background:var(--accent);color:#1a1814}
 .header-search{padding:.6rem 2rem;display:flex;align-items:center;gap:.85rem;background:var(--white)}
+.search-row{display:flex;gap:.5rem;flex:1;max-width:1040px}
 .sw{flex:1;max-width:520px;position:relative}
 .sw input{width:100%;background:var(--surface);border:1.5px solid var(--border2);border-radius:6px;padding:.58rem .65rem .58rem 2.35rem;font-size:.86rem;font-family:'Inter',sans-serif;color:var(--text);outline:none;transition:border-color .2s,background .2s}
 .sw input:focus{border-color:var(--accent);background:var(--white)}
@@ -202,6 +203,7 @@ header{background:var(--white);border-bottom:1px solid var(--border);position:st
 
   /* Search stacks above filters */
   .header-search{padding:.45rem 1rem;flex-direction:column;align-items:stretch;gap:.4rem}
+  .search-row{flex-direction:column;gap:.35rem;max-width:none}
   .sw{max-width:none}
 
   /* Filters: cat-select full width on first row, buttons on second */

@@ -130,7 +130,8 @@
       </div>
       <div class="table-wrap">
         <div class="table-toolbar" style="flex-wrap:nowrap;gap:.5rem;overflow-x:auto">
-          <input class="search-in" id="prod-q" placeholder="Buscar por nome ou código…" oninput="debSearch()" autocomplete="off" style="flex:1 1 0;min-width:100px">
+          <input class="search-in" id="prod-q-name" placeholder="Buscar por nome…" oninput="debSearch()" autocomplete="off" style="flex:1 1 0;min-width:80px">
+          <input class="search-in" id="prod-q-code" placeholder="Buscar por código…" oninput="debSearch()" autocomplete="off" style="flex:1 1 0;min-width:80px">
           <div class="cat-wrap" style="flex:1 1 0;min-width:120px;position:relative">
             <input type="text" id="cat-group" class="search-in" placeholder="Todas as categorias" autocomplete="off" style="width:100%;box-sizing:border-box;padding-right:1.4rem">
             <button class="cat-clear" id="cat-group-clear" tabindex="-1" style="display:none">×</button>
@@ -453,7 +454,6 @@
 <div class="toast" id="toast"></div>
 
 <script src="js/product-category-svg.js"></script>
-<script src="js/session.js"></script>
 <script src="js/admin.js"></script>
 
 

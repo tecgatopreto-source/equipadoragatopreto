@@ -41,11 +41,14 @@
 
   <!-- Header -->
   <header class="app-header">
-    <div>
+    <div class="header-left">
       <div class="logo-mark">Gato <span>Preto</span></div>
-      <div class="logo-sub">Conferente</div>
+      <div class="logo-sub">Conferente de Estoque</div>
     </div>
-    <button class="btn-logout" onclick="logout()">Sair</button>
+    <div class="header-right">
+      <span class="header-user" id="header-user"></span>
+      <button class="btn-logout" onclick="logout()">Sair</button>
+    </div>
   </header>
 
   <!-- Search -->
@@ -54,7 +57,11 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
       </svg>
-      <input class="search-input" id="search" type="search" placeholder="Buscar por nome ou código…"
+      <input class="search-input" id="search-name" type="search" placeholder="Buscar por nome…"
+             autocomplete="off" autocorrect="off" spellcheck="false" inputmode="search">
+    </div>
+    <div class="search-input-wrap code-wrap">
+      <input class="search-input" id="search-code" type="search" placeholder="Buscar por código…"
              autocomplete="off" autocorrect="off" spellcheck="false" inputmode="search">
     </div>
     <button class="filter-btn" id="alert-filter-btn" onclick="toggleAlertFilter()" title="Apenas alertas fiscais">
@@ -138,7 +145,6 @@
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<script src="js/session.js"></script>
 <script src="js/conferente.js"></script>
 </body>
 </html>

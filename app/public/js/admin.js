@@ -1,19 +1,16 @@
 // ── Auth guard ─────────────────────────────────────────────────────────────
 const BASE = window.APP_BASE || '';
-const token = localStorage.getItem('gp_token');
 const user  = JSON.parse(localStorage.getItem('gp_user') || 'null');
-if (!token || !user || user.role !== 'admin') {
+if (!user || user.role !== 'admin') {
   location.href = BASE + '/login.html';
 }
 document.getElementById('uname').textContent = user ? user.username : '';
 
-function logout() {
-  _sessionClear();
-  localStorage.removeItem('gp_token');
+async function logout() {
+  try { await fetch(BASE + '/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
   localStorage.removeItem('gp_user');
   location.href = BASE + '/login.html';
 }
-_sessionInit(logout);
 
 // ── Sidebar mobile toggle ──────────────────────────────────────────────────
 function toggleSidebar() {
@@ -57,13 +54,12 @@ function navigate(page) {
 async function api(method, path, body) {
   const res = await fetch(BASE + '/api' + path, {
     method,
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined
   });
   const data = await res.json();
   if (res.status === 401) {
-    _sessionClear();
-    localStorage.removeItem('gp_token');
     localStorage.removeItem('gp_user');
     location.href = BASE + '/login.html';
     return;
@@ -225,7 +221,12 @@ function setCatFilter(val) {
 function debSearch() {
   clearTimeout(debTimer);
   debTimer = setTimeout(() => {
-    localStorage.setItem('gp_admin_q', document.getElementById('prod-q').value);
+    const nameVal = document.getElementById('prod-q-name').value;
+    const codeVal = document.getElementById('prod-q-code').value;
+    if (nameVal) localStorage.setItem('gp_admin_name_q', nameVal);
+    else localStorage.removeItem('gp_admin_name_q');
+    if (codeVal) localStorage.setItem('gp_admin_code_q', codeVal);
+    else localStorage.removeItem('gp_admin_code_q');
     loadProducts(1);
   }, 350);
 }
@@ -291,14 +292,17 @@ async function loadProducts(page) {
   prodPage = page;
   const tbody = document.getElementById('prod-tbody');
   tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:1.5rem;color:var(--muted);font-size:.8rem">Carregando…</td></tr>';
-  const q             = document.getElementById('prod-q').value;
+  const nameQ         = document.getElementById('prod-q-name').value;
+  const codeQ         = document.getElementById('prod-q-code').value;
   const status        = statusFilter;
   const disabled      = disabledFilter;
   const alertParam    = alertFilter ? '&fiscal_alert=1' : '';
   const disabledParam = disabled !== '' ? `&disabled=${disabled}` : '';
   const catParam      = catFilter   ? `&cat=${encodeURIComponent(catFilter)}` : '';
+  const nameParam     = nameQ ? `&name_q=${encodeURIComponent(nameQ)}` : '';
+  const codeParam     = codeQ ? `&code_q=${encodeURIComponent(codeQ)}` : '';
   const data = await api('GET',
-    `/products?q=${encodeURIComponent(q)}&status=${status}&page=${page}&limit=${LIMIT}&sort=${sortCol}&order=${sortDir}${alertParam}${disabledParam}${catParam}`
+    `/products?status=${status}&page=${page}&limit=${LIMIT}&sort=${sortCol}&order=${sortDir}${nameParam}${codeParam}${alertParam}${disabledParam}${catParam}`
   );
   if (reqId !== _loadReqId) return;
 
@@ -443,7 +447,7 @@ async function uploadImageFile() {
   formData.append('image', file);
   const res = await fetch(BASE + `/api/products/${editingId}/images/upload`, {
     method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + token },
+    credentials: 'same-origin',
     body: formData,
   });
   const data = await res.json();
@@ -885,7 +889,7 @@ async function uploadPdf(type, file) {
   try {
     res  = await fetch(BASE + `/api/documents/upload/${type}`, {
       method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + token },
+      credentials: 'same-origin',
       body: form,
     });
     data = await res.json();
@@ -1012,7 +1016,7 @@ async function processCatPdf(file) {
   try {
     res  = await fetch(BASE + '/api/documents/categorize', {
       method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + token },
+      credentials: 'same-origin',
       body: form,
     });
     data = await res.json();
@@ -1064,7 +1068,8 @@ async function applyCatUpdate(codes) {
   try {
     res  = await fetch(BASE + '/api/documents/set-category', {
       method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ codes, categoria: cat }),
     });
     data = await res.json();
@@ -1079,8 +1084,10 @@ async function applyCatUpdate(codes) {
 
 // ── Init ───────────────────────────────────────────────────────────────────
 // Restaura filtros salvos
-const _savedQ = localStorage.getItem('gp_admin_q') || '';
-if (_savedQ) document.getElementById('prod-q').value = _savedQ;
+const _savedNameQ = localStorage.getItem('gp_admin_name_q') || '';
+const _savedCodeQ = localStorage.getItem('gp_admin_code_q') || '';
+if (_savedNameQ) document.getElementById('prod-q-name').value = _savedNameQ;
+if (_savedCodeQ) document.getElementById('prod-q-code').value = _savedCodeQ;
 _restoreFilterButtons();
 
 // Restaura a seção que estava aberta (hash routing)
