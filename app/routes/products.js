@@ -114,11 +114,11 @@ router.get('/', async (req, res) => {
     params.push('%' + code_q.trim().toLowerCase() + '%');
     conditions.push(`p.id ILIKE $${params.length}`);
   } else if (name_q.trim()) {
-    params.push('%' + name_q.trim().toLowerCase() + '%');
-    conditions.push(`extensions.unaccent(p.name) ILIKE extensions.unaccent($${params.length})`);
+    params.push('%' + name_q.trim().toUpperCase() + '%');
+    conditions.push(`upper(p.name) LIKE $${params.length}`);
   } else if (q.trim()) {
-    params.push('%' + q.trim().toLowerCase() + '%');
-    conditions.push(`(extensions.unaccent(p.name) ILIKE extensions.unaccent($${params.length}) OR p.id ILIKE $${params.length})`);
+    params.push('%' + q.trim().toUpperCase() + '%');
+    conditions.push(`(upper(p.name) LIKE $${params.length} OR p.id ILIKE $${params.length})`);
   }
   if (status !== 'T') {
     params.push(parseInt(status));
@@ -150,6 +150,7 @@ router.get('/', async (req, res) => {
 
   try {
     const dataParams = [...params, parseInt(limit), off];
+    const t0 = Date.now();
 
     const [countResult, dataResult] = await Promise.all([
       pool.query(`SELECT COUNT(*) as n FROM products p ${where}`, countParams),
@@ -178,6 +179,7 @@ router.get('/', async (req, res) => {
     ]);
     const total = parseInt(countResult.rows[0].n);
     const rows = dataResult.rows;
+    console.log(`[perf] GET /products q="${q||name_q||code_q}" → ${rows.length} rows em ${Date.now() - t0}ms`);
 
     const result = { total, page: parseInt(page), limit: parseInt(limit), products: rows };
     cache.set(cacheKey, result, TTL_PRODUCTS);
