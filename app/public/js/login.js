@@ -12,6 +12,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     const res = await fetch(BASE + '/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
       body: JSON.stringify({
         email: document.getElementById('email').value,
         password: document.getElementById('password').value
@@ -25,10 +26,9 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
       throw new Error(msg);
     }
 
-    localStorage.setItem('gp_token', data.token);
     localStorage.setItem('gp_user', JSON.stringify(data.user));
-    localStorage.setItem('gp_last_activity', Date.now().toString());
-    window.location.href = data.user.role === 'admin' ? BASE + '/admin' : BASE + '/';
+    const role = data.user.role;
+    window.location.href = role === 'admin' ? BASE + '/admin' : role === 'conferente' ? BASE + '/conferente' : BASE + '/';
   } catch (ex) {
     errText.textContent = ex.message;
     err.style.display = 'flex';

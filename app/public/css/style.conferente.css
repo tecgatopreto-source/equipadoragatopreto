@@ -302,7 +302,7 @@ body{
 }
 
 /* ── SCREENS ─────────────────────────────────── */
-#screen-app{display:none}
+#screen-app{display:block}
 
 /* ── RESPONSIVE DESKTOP ──────────────────────── */
 @media(min-width:640px){

@@ -13,29 +13,6 @@
 </head>
 <body>
 
-<!-- ╔══ LOGIN SCREEN ══════════════════════════════════╗ -->
-<div id="screen-login">
-  <div class="login-card">
-    <div class="login-logo">
-      <div class="logo-mark">Gato <span>Preto</span></div>
-      <div class="logo-sub">Autopeças</div>
-    </div>
-    <div class="login-role">Conferente de Estoque</div>
-    <form id="loginForm">
-      <div class="login-field">
-        <label for="lu">Usuário</label>
-        <input type="text" id="lu" autocomplete="username" placeholder="usuário" required autocapitalize="none">
-      </div>
-      <div class="login-field">
-        <label for="lp">Senha</label>
-        <input type="password" id="lp" autocomplete="current-password" placeholder="senha" required>
-      </div>
-      <button class="btn-login" type="submit" id="lbtn">Entrar</button>
-      <div class="login-error" id="lerr"></div>
-    </form>
-  </div>
-</div>
-
 <!-- ╔══ APP SCREEN ═════════════════════════════════════╗ -->
 <div id="screen-app">
 
@@ -47,6 +24,7 @@
     </div>
     <div class="header-right">
       <span class="header-user" id="header-user"></span>
+      <a class="btn-logout" href="#" onclick="location.href=(window.APP_BASE||'')+'/';return false" style="text-decoration:none">Ver Catálogo</a>
       <button class="btn-logout" onclick="logout()">Sair</button>
     </div>
   </header>

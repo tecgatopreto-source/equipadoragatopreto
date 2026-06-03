@@ -16,22 +16,11 @@ let searchTimer   = null;
 /* ═══ AUTH ══════════════════════════════════════════════════════════ */
 function init() {
   const user = localStorage.getItem('gp_user');
-  if (user) {
-    showApp();
-  } else {
-    showLogin();
+  if (!user) {
+    window.location.replace(BASE + '/login');
+    return;
   }
-}
-
-function showLogin() {
-  document.getElementById('screen-login').style.display = 'flex';
-  document.getElementById('screen-app').style.display   = 'none';
-}
-
-function showApp() {
-  document.getElementById('screen-login').style.display = 'none';
-  document.getElementById('screen-app').style.display   = 'block';
-  const userData = JSON.parse(localStorage.getItem('gp_user') || 'null');
+  const userData = JSON.parse(user);
   const userEl = document.getElementById('header-user');
   if (userEl && userData?.username) userEl.textContent = userData.username;
   loadProducts(1);
@@ -40,38 +29,8 @@ function showApp() {
 async function logout() {
   try { await fetch(BASE + '/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
   localStorage.removeItem('gp_user');
-  showLogin();
+  window.location.replace(BASE + '/login');
 }
-
-document.getElementById('loginForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const btn = document.getElementById('lbtn');
-  const err = document.getElementById('lerr');
-  err.style.display = 'none';
-  btn.disabled = true;
-  btn.textContent = 'Entrando…';
-  try {
-    const res  = await fetch(BASE + '/api/auth/login', {
-      method:'POST',
-      credentials: 'same-origin',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        email: document.getElementById('lu').value,
-        password: document.getElementById('lp').value
-      })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erro ao fazer login');
-    localStorage.setItem('gp_user', JSON.stringify(data.user));
-    showApp();
-  } catch (ex) {
-    err.textContent = ex.message;
-    err.style.display = 'block';
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Entrar';
-  }
-});
 
 /* ═══ FILTERS ════════════════════════════════════════════════════════ */
 document.getElementById('search-name').addEventListener('input', (e) => {
@@ -165,7 +124,7 @@ function renderList() {
           </div>
           <div class="stock-item">
             <div class="stock-label">Est. Gerencial</div>
-            <div class="stock-value">${fmt(p.stock_mgmt)}</div>
+            <div class="stock-value">${fmt(p.snap_stock_mgmt)}</div>
           </div>
           <div class="stock-item real-col">
             <div class="stock-label">Real</div>
@@ -215,7 +174,7 @@ async function openSheet(id) {
   document.getElementById('sheet-name').textContent = p.name;
   document.getElementById('sheet-ref').textContent  = p.id;
   document.getElementById('sh-fiscal').textContent  = fmt(p.stock_fiscal);
-  document.getElementById('sh-mgmt').textContent    = fmt(p.stock_mgmt);
+  document.getElementById('sh-mgmt').textContent    = fmt(p.snap_stock_mgmt);
 
   const realEl = document.getElementById('sh-real');
   if (p.stock_real !== null && p.stock_real !== undefined) {

@@ -4,6 +4,7 @@ try { require('fs').readFileSync('.env').toString().split('\n').forEach(l => { c
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const jwt = require('jsonwebtoken');
 
 // Variáveis obrigatórias — falha rápido se faltar
 ['DATABASE_URL', 'JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_ANON_KEY'].forEach(k => {
@@ -30,6 +31,7 @@ const conferenteHtml = renderHtml('conferente.html');
 const indexHtml      = renderHtml('index.html');
 const loginHtml      = renderHtml('login.html');
 
+app.use(require('cookie-parser')());
 app.use(express.json({ limit: '2mb' }));
 
 // Arquivos estáticos na raiz (.html excluídos — servidos pelas rotas SPA com APP_BASE injetado)
@@ -57,12 +59,25 @@ app.get('/api/health', async (_, res) => {
 app.use('/api/auth',      require('./routes/auth'));
 app.use('/api/products',  require('./routes/products'));
 app.use('/api/documents', require('./routes/documents'));
+app.use('/api/users',     require('./routes/users'));
 
 // ── SPA Fallback (sempre na raiz) ─────────────────────────────────────────────
+function requireAuthPage(req, res, next) {
+  const token = req.cookies && req.cookies['gp_auth'];
+  if (!token) return res.redirect(BASE + '/login');
+  try {
+    jwt.verify(token, process.env.JWT_SECRET);
+    next();
+  } catch {
+    res.clearCookie('gp_auth');
+    res.redirect(BASE + '/login');
+  }
+}
+
 app.get('/login',       (_, res) => res.send(loginHtml));
 app.get('/login.html',  (_, res) => res.send(loginHtml));
-app.get('/admin*',      (_, res) => res.send(adminHtml));
-app.get('/conferente*', (_, res) => res.send(conferenteHtml));
+app.get('/admin*',      requireAuthPage, (_, res) => res.send(adminHtml));
+app.get('/conferente*', requireAuthPage, (_, res) => res.send(conferenteHtml));
 app.get('/*',           (_, res) => res.send(indexHtml));
 
 // ── Start ─────────────────────────────────────────────────────────────────────

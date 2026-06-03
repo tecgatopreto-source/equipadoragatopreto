@@ -38,7 +38,7 @@ async function initDb() {
   pool.on('connect', client => {
     client.query('SET search_path TO "CatalogoProdutos"');
     client.query("SET timezone = 'America/Sao_Paulo'");
-    client.query("SET statement_timeout = '8000'");
+    client.query("SET statement_timeout = '20000'");
   });
 }
 

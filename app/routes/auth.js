@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const jwt    = require('jsonwebtoken');
-const { JWT_SECRET } = require('../middleware/auth');
+const { JWT_SECRET, COOKIE_NAME, COOKIE_OPTS } = require('../middleware/auth');
 
 const SUPABASE_URL      = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
@@ -56,7 +56,7 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'no_access' });
     }
 
-    const role = 'admin';
+    const role = perfisData[0].role || 'conferente';
 
     const token = jwt.sign(
       { id: u.id, username: u.email, role },
@@ -64,11 +64,18 @@ router.post('/login', async (req, res) => {
       { expiresIn: '12h' }
     );
 
-    res.json({ token, user: { id: u.id, username: u.email, role } });
+    res.cookie(COOKIE_NAME, token, COOKIE_OPTS);
+    res.json({ user: { id: u.id, username: u.email, role } });
   } catch (err) {
     console.error('[auth] login error:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// POST /api/auth/logout
+router.post('/logout', (req, res) => {
+  res.clearCookie(COOKIE_NAME);
+  res.json({ ok: true });
 });
 
 // GET /api/auth/me
