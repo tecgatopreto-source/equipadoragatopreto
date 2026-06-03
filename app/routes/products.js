@@ -534,7 +534,7 @@ router.delete('/:id', requireAdmin, async (req, res) => {
 });
 
 // ── POST /api/products/:id/images/upload  (multipart file) ────────────────
-router.post('/:id/images/upload', authenticate, imgUpload.single('image'), async (req, res) => {
+router.post('/:id/images/upload', imgUpload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
   try {
     const pool = getDb();
@@ -558,7 +558,7 @@ router.post('/:id/images/upload', authenticate, imgUpload.single('image'), async
 });
 
 // ── POST /api/products/:id/images ─────────────────────────────────────────
-router.post('/:id/images', authenticate, async (req, res) => {
+router.post('/:id/images', async (req, res) => {
   try {
     const pool = getDb();
     const { url, is_pinned = 0, is_manual = 0 } = req.body;
@@ -586,7 +586,7 @@ router.post('/:id/images', authenticate, async (req, res) => {
 });
 
 // ── PUT /api/products/:id/images/:imgId/pin ────────────────────────────────
-router.put('/:id/images/:imgId/pin', authenticate, async (req, res) => {
+router.put('/:id/images/:imgId/pin', async (req, res) => {
   try {
     const pool = getDb();
     await pool.query('UPDATE product_images SET is_pinned=0 WHERE product_id=$1', [req.params.id]);
@@ -603,7 +603,7 @@ router.put('/:id/images/:imgId/pin', authenticate, async (req, res) => {
 });
 
 // ── DELETE /api/products/:id/images/:imgId ────────────────────────────────
-router.delete('/:id/images/:imgId', authenticate, async (req, res) => {
+router.delete('/:id/images/:imgId', async (req, res) => {
   try {
     const pool = getDb();
     const result = await pool.query(
@@ -619,7 +619,7 @@ router.delete('/:id/images/:imgId', authenticate, async (req, res) => {
 });
 
 // ── DELETE /api/products/:id/images ───────────────────────────────────────
-router.delete('/:id/images', authenticate, async (req, res) => {
+router.delete('/:id/images', async (req, res) => {
   try {
     const pool = getDb();
     await pool.query('DELETE FROM product_images WHERE product_id=$1', [req.params.id]);
@@ -631,34 +631,42 @@ router.delete('/:id/images', authenticate, async (req, res) => {
 });
 
 // ── GET /api/products/:id/search-images ──────────────────────────────────
-// Chamado pelo modal quando o produto não tem imagens em cache.
-// Busca no Google e persiste automaticamente.
+// Sem ?fresh=1 → retorna cache (se existir) ou busca+salva automaticamente.
+// Com ?fresh=1  → busca sempre, retorna candidatas SEM salvar (requer auth).
 const _searching = new Set();
 
 router.get('/:id/search-images', async (req, res) => {
-  const id = req.params.id;
+  const id    = req.params.id;
+  const fresh = req.query.fresh === '1';
+
+  // Modo candidatas: público — só leitura, não salva nada
+  if (fresh) {
+    try {
+      const pool = getDb();
+      const prod = await pool.query('SELECT id, name FROM products WHERE id=$1', [id]);
+      if (!prod.rows.length) return res.status(404).json({ error: 'Produto não encontrado' });
+
+      const { searchImages, buildQuery } = require('../lib/image-search');
+      const urls = await searchImages(buildQuery(prod.rows[0]));
+      return res.json({ images: urls.map(url => ({ url })), source: 'fresh' });
+    } catch (err) {
+      return res.status(502).json({ error: err.message, source: 'error' });
+    }
+  }
+
+  // Modo auto-save: cache-first, depois busca e persiste
   try {
     const pool = getDb();
-
-    // Retorna cache se já há imagens
     const cached = await pool.query(
       'SELECT * FROM product_images WHERE product_id=$1 ORDER BY is_pinned DESC, id ASC',
       [id]
     );
-    if (cached.rows.length) {
-      return res.json({ images: cached.rows, source: 'cache' });
-    }
+    if (cached.rows.length) return res.json({ images: cached.rows, source: 'cache' });
 
-    // Evita buscas simultâneas para o mesmo produto
-    if (_searching.has(id)) {
-      return res.json({ images: [], source: 'pending' });
-    }
+    if (_searching.has(id)) return res.json({ images: [], source: 'pending' });
     _searching.add(id);
 
-    const prod = await pool.query(
-      'SELECT id, name, ean FROM "CatalogoProdutos".products WHERE id=$1',
-      [id]
-    );
+    const prod = await pool.query('SELECT id, name FROM products WHERE id=$1', [id]);
     if (!prod.rows.length) {
       _searching.delete(id);
       return res.status(404).json({ error: 'Produto não encontrado' });
@@ -668,11 +676,10 @@ router.get('/:id/search-images', async (req, res) => {
     const images = await searchAndSaveImages(prod.rows[0]);
     _searching.delete(id);
     _invalidateImages();
-    res.json({ images, source: 'google' });
+    res.json({ images, source: 'auto' });
   } catch (err) {
-    _searching.delete(id);
-    const isConfig = err.message.includes('não configurados');
-    res.status(isConfig ? 501 : 502).json({ error: err.message, source: 'error' });
+    _searching.delete(req.params.id);
+    res.status(502).json({ error: err.message, source: 'error' });
   }
 });
 

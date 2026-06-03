@@ -5,8 +5,12 @@ const user  = JSON.parse(localStorage.getItem('gp_user') || 'null');
 function renderAuthActions() {
   const el = document.getElementById('auth-actions');
   if (user) {
-    el.innerHTML = (user.role === 'admin' ? `<a class="btn-admin" href="${BASE}/admin">⚙ Admin</a>` : '')
-      + `<button class="btn-login" onclick="logout()">Sair (${user.username})</button>`;
+    const dashLink = user.role === 'admin'
+      ? `<a class="btn-admin" href="${BASE}/admin">⚙ Admin</a>`
+      : user.role === 'conferente'
+        ? `<a class="btn-admin" href="${BASE}/conferente">📋 Conferente</a>`
+        : '';
+    el.innerHTML = dashLink + `<button class="btn-login" onclick="logout()">Sair (${user.username})</button>`;
   } else {
     el.innerHTML = `<a class="btn-login" href="${BASE}/login.html">Entrar</a>`;
   }
@@ -32,9 +36,28 @@ let modalProductId       = null;
 let modalImages          = [];   // [{id, url, is_pinned}, ...]
 let modalImgIndex        = 0;    // index da foto exibida
 let _modalGen            = 0;    // geração do modal — evita race condition entre aberturas
+let _modalController     = null; // AbortController do fetch atual do modal
 let _modalProductName       = '';
 let _modalProductCategoria  = '';
 let _modalProductIsDisabled = 0;
+
+// ── Cache de imagens em sessionStorage (15 min por produto) ────────────────
+const _IMG_TTL = 15 * 60 * 1000;
+function _imgCacheGet(id) {
+  try {
+    const raw = sessionStorage.getItem('gp_imgs_' + id);
+    if (!raw) return null;
+    const { ts, images } = JSON.parse(raw);
+    if (Date.now() - ts > _IMG_TTL) { sessionStorage.removeItem('gp_imgs_' + id); return null; }
+    return images;
+  } catch { return null; }
+}
+function _imgCacheSet(id, images) {
+  try { sessionStorage.setItem('gp_imgs_' + id, JSON.stringify({ ts: Date.now(), images })); } catch {}
+}
+function _imgCacheClear(id) {
+  try { sessionStorage.removeItem('gp_imgs_' + id); } catch {}
+}
 
 // ── Fetch helpers ──────────────────────────────────────────────────────────
 async function apiFetch(path, opts = {}) {
@@ -247,14 +270,11 @@ function showMainImg(index) {
   document.getElementById('mp-prev').style.display = show ? 'flex' : 'none';
   document.getElementById('mp-next').style.display = show ? 'flex' : 'none';
 
-  // Pin / delete buttons (only for authenticated users)
-  if (user) {
-    const pinBtn = document.getElementById('btn-pin');
-    pinBtn.style.display = '';
-    pinBtn.classList.toggle('active', !!img.is_pinned);
-    pinBtn.textContent = img.is_pinned ? '★ Fixada como capa' : '★ Fixar como capa';
-    document.getElementById('btn-del-img').style.display = '';
-  }
+  const pinBtn = document.getElementById('btn-pin');
+  pinBtn.style.display = '';
+  pinBtn.classList.toggle('active', !!img.is_pinned);
+  pinBtn.textContent = img.is_pinned ? '★ Fixada como capa' : '★ Fixar como capa';
+  document.getElementById('btn-del-img').style.display = '';
 
   document.getElementById('img-tip').style.display = '';
   modalImgIndex = index;
@@ -278,13 +298,47 @@ function buildThumbs() {
     const t = document.createElement('div');
     t.className = 'thumb' + (img.is_pinned ? ' pinned' : '') + (i === 0 ? ' sel' : '');
     t.dataset.index = i;
-    t.innerHTML = `<img src="${img.url}" alt="" loading="lazy">`;
+    t.innerHTML = `
+      <img src="${img.url}" alt="" loading="lazy">
+      <button class="thumb-del" title="Remover esta foto" onclick="event.stopPropagation();deleteThumbImg(${img.id})">✕</button>
+    `;
     t.addEventListener('click', () => showMainImg(i));
     strip.appendChild(t);
   });
 }
 
+async function deleteThumbImg(imgId) {
+  if (!modalProductId) return;
+  try {
+    await apiFetch(`/api/products/${modalProductId}/images/${imgId}`, { method: 'DELETE' });
+    const idx = modalImages.findIndex(i => i.id === imgId);
+    if (idx !== -1) modalImages.splice(idx, 1);
+    _imgCacheSet(modalProductId, modalImages);
+    if (!modalImages.length) {
+      _imgCacheClear(modalProductId);
+      document.getElementById('mp-img').classList.remove('on');
+      document.getElementById('m-img').src = '';
+      document.getElementById('btn-pin').style.display = 'none';
+      document.getElementById('btn-del-img').style.display = 'none';
+      setBadge('Sem fotos', 'isb-none');
+      updateCardImg(modalProductId, null);
+    } else {
+      showMainImg(Math.min(modalImgIndex, modalImages.length - 1));
+      updateCardImg(modalProductId, modalImages.find(i => i.is_pinned)?.url || modalImages[0]?.url);
+    }
+    buildThumbs();
+    showToast('Foto removida');
+  } catch (e) {
+    showToast('Erro ao remover: ' + (e.message || ''));
+  }
+}
+
 async function openModal(id) {
+  // Cancela fetch do modal anterior imediatamente
+  if (_modalController) { _modalController.abort(); }
+  _modalController = new AbortController();
+  const controller = _modalController;
+
   const gen = ++_modalGen;   // cada abertura tem número único
   modalProductId = id;
   modalImages    = [];
@@ -303,19 +357,25 @@ async function openModal(id) {
   document.getElementById('loader-txt').textContent   = 'Carregando produto…';
   document.getElementById('thumb-strip').innerHTML    = '';
   document.getElementById('img-tip').style.display   = 'none';
-  document.getElementById('btn-pin').style.display   = 'none';
-  document.getElementById('btn-del-img').style.display = 'none';
+  document.getElementById('btn-pin').style.display        = 'none';
+  document.getElementById('btn-del-img').style.display    = 'none';
+  document.getElementById('btn-search-imgs').style.display  = '';
+  document.getElementById('catalog-img-add').style.display  = '';
+  document.getElementById('candidates-area').style.display  = 'none';
+  document.getElementById('catalog-img-file').value = '';
+  document.getElementById('catalog-img-url').value  = '';
   document.getElementById('mp-prev').style.display   = 'none';
   document.getElementById('mp-next').style.display   = 'none';
   document.getElementById('mp-counter').style.display = 'none';
   document.getElementById('btn-refresh').style.display = 'none';
   setBadge('', '');
 
-  // Load product info
+  // Load product info (cancelável)
   let p;
   try {
-    p = await apiFetch('/api/products/' + id);
-  } catch {
+    p = await apiFetch('/api/products/' + id, { signal: controller.signal });
+  } catch (err) {
+    if (err.name === 'AbortError') return; // outro produto foi aberto — descarta silenciosamente
     if (gen !== _modalGen) return;
     document.getElementById('ph-loader').classList.add('off');
     document.getElementById('m-name').textContent     = 'Erro ao carregar';
@@ -373,48 +433,44 @@ async function openModal(id) {
     });
   }
 
-  // Load images: se já tem no banco mostra imediatamente, senão busca Google
-  if (p.images && p.images.length) {
-    if (gen !== _modalGen) return; // modal mais novo abriu — descarta
+  // Imagens: sessionStorage → banco → placeholder (sem auto-search)
+  if (gen !== _modalGen) return;
+
+  const sessionImgs = _imgCacheGet(id);
+  if (sessionImgs && sessionImgs.length) {
+    modalImages = sessionImgs;
+    document.getElementById('ph-loader').classList.add('off');
+    setBadge('⚡ Cache', 'isb-db');
+    buildThumbs();
+    showMainImg(0);
+    document.getElementById('btn-refresh').style.display = '';
+  } else if (p.images && p.images.length) {
     modalImages = p.images;
+    _imgCacheSet(id, modalImages);
     document.getElementById('ph-loader').classList.add('off');
     setBadge('⚡ Cache', 'isb-db');
     buildThumbs();
     showMainImg(0);
     document.getElementById('btn-refresh').style.display = '';
   } else {
-    // Busca Google (server-side)
-    document.getElementById('loader-txt').textContent = 'Buscando imagens no Google…';
-    setBadge('🔍 Buscando…', 'isb-searching');
-    try {
-      const result = await apiFetch('/api/products/' + id + '/search-images');
-      if (gen !== _modalGen) return; // modal mais novo abriu — descarta
-      modalImages = result.images || [];
-      document.getElementById('ph-loader').classList.add('off');
-
-      if (modalImages.length) {
-        setBadge('✓ Google Images', 'isb-google');
-        buildThumbs();
-        showMainImg(0);
-        updateCardImg(id, modalImages.find(i => i.is_pinned)?.url || modalImages[0]?.url);
-      } else {
-        setBadge('Sem fotos', 'isb-none');
-        buildThumbs();
-      }
-      document.getElementById('btn-refresh').style.display = '';
-    } catch {
-      if (gen !== _modalGen) return;
-      document.getElementById('ph-loader').classList.add('off');
-      setBadge('Erro', 'isb-none');
-    }
+    // Sem imagens — mostra placeholder, usuário decide se quer buscar
+    document.getElementById('ph-loader').classList.add('off');
+    setBadge('Sem fotos', 'isb-none');
+    buildThumbs();
+    document.getElementById('btn-refresh').style.display = '';
   }
 }
 
-// Atualiza o card no grid após obter imagem
+// Atualiza o card no grid após obter/remover imagem
 function updateCardImg(id, url) {
-  if (!url) return;
   const card = document.querySelector(`.card[data-id="${id}"]`);
   if (!card) return;
+  if (!url) {
+    const imgWrap = card.querySelector('.card-img');
+    const photo = imgWrap.querySelector('.ci-photo');
+    if (photo) photo.remove();
+    return;
+  }
   const imgWrap = card.querySelector('.card-img');
   let img = imgWrap.querySelector('.ci-photo');
   if (!img) {
@@ -429,14 +485,14 @@ function updateCardImg(id, url) {
 
 // ── Pin button ─────────────────────────────────────────────────────────────
 document.getElementById('btn-pin').addEventListener('click', async () => {
-  if (!token || !modalImages.length) return;
+  if (!modalImages.length) return;
   const img = modalImages[modalImgIndex];
-  if (img.is_pinned) return; // já está fixada
+  if (img.is_pinned) return;
   try {
     await apiFetch(`/api/products/${modalProductId}/images/${img.id}/pin`, { method: 'PUT' });
-    // Atualiza estado local
     modalImages.forEach(i => i.is_pinned = 0);
     img.is_pinned = 1;
+    _imgCacheSet(modalProductId, modalImages);
     buildThumbs();
     showMainImg(modalImgIndex);
     updateCardImg(modalProductId, img.url);
@@ -448,13 +504,15 @@ document.getElementById('btn-pin').addEventListener('click', async () => {
 
 // ── Delete image ───────────────────────────────────────────────────────────
 document.getElementById('btn-del-img').addEventListener('click', async () => {
-  if (!token || !modalImages.length) return;
+  if (!modalImages.length) return;
   const img = modalImages[modalImgIndex];
   if (!confirm('Remover esta imagem do produto?')) return;
   try {
     await apiFetch(`/api/products/${modalProductId}/images/${img.id}`, { method: 'DELETE' });
     modalImages.splice(modalImgIndex, 1);
+    _imgCacheSet(modalProductId, modalImages);
     if (!modalImages.length) {
+      _imgCacheClear(modalProductId);
       buildThumbs();
       document.getElementById('mp-img').classList.remove('on');
       document.getElementById('m-img').src = '';
@@ -471,9 +529,10 @@ document.getElementById('btn-del-img').addEventListener('click', async () => {
   }
 });
 
-// ── Refresh images (limpa cache e rebusca) ─────────────────────────────────
+// ── Refresh images (limpa cache e rebusca via Bing) ────────────────────────
 document.getElementById('btn-refresh').addEventListener('click', async () => {
-  if (!confirm('Remover as imagens atuais e buscar novas no Google?')) return;
+  if (!confirm('Remover as imagens atuais e buscar novas?')) return;
+  _imgCacheClear(modalProductId);
   await apiFetch(`/api/products/${modalProductId}/images`, { method: 'DELETE' });
   modalImages = [];
   buildThumbs();
@@ -487,7 +546,8 @@ document.getElementById('btn-refresh').addEventListener('click', async () => {
   document.getElementById('ph-loader').classList.add('off');
 
   if (modalImages.length) {
-    setBadge('✓ Google Images', 'isb-google');
+    _imgCacheSet(modalProductId, modalImages);
+    setBadge('✓ Imagens', 'isb-google');
     buildThumbs();
     showMainImg(0);
     updateCardImg(modalProductId, modalImages.find(i => i.is_pinned)?.url || modalImages[0]?.url);
@@ -496,6 +556,108 @@ document.getElementById('btn-refresh').addEventListener('click', async () => {
   }
   showToast('Imagens atualizadas');
 });
+
+// ── Busca de imagens candidatas ────────────────────────────────────────────
+document.getElementById('btn-search-imgs').addEventListener('click', async () => {
+  if (!modalProductId) return;
+  const btn = document.getElementById('btn-search-imgs');
+  btn.disabled = true;
+  btn.textContent = '⌛ Buscando…';
+  try {
+    const data = await apiFetch(`/api/products/${modalProductId}/search-images?fresh=1`);
+    _renderCatalogCandidates(data.images || []);
+  } catch (e) {
+    showToast('Erro na busca: ' + (e.message || ''));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔍 Buscar';
+  }
+});
+
+function _renderCatalogCandidates(images) {
+  const area  = document.getElementById('candidates-area');
+  const strip = document.getElementById('candidate-strip');
+  if (!images.length) {
+    showToast('Nenhuma imagem encontrada.');
+    area.style.display = 'none';
+    return;
+  }
+  strip.innerHTML = images.map(img => `
+    <div class="cand-tile">
+      <img src="${img.url}" loading="lazy" onerror="this.parentElement.style.display='none'"
+           onclick="selectCatalogCandidate('${img.url.replace(/'/g, "\\'")}')">
+      <span class="cand-tile-use">Usar</span>
+      <button class="cand-tile-del" title="Não é esse produto"
+              onclick="this.closest('.cand-tile').remove()">✕</button>
+    </div>
+  `).join('');
+  area.style.display = 'block';
+}
+
+async function selectCatalogCandidate(url) {
+  if (!modalProductId) return;
+  try {
+    await apiFetch(`/api/products/${modalProductId}/images`, {
+      method: 'POST',
+      body: JSON.stringify({ url, is_pinned: 1, is_manual: 1 }),
+    });
+    document.getElementById('candidates-area').style.display = 'none';
+    const p = await apiFetch('/api/products/' + modalProductId);
+    modalImages = p.images || [];
+    _imgCacheSet(modalProductId, modalImages);
+    buildThumbs();
+    if (modalImages.length) {
+      showMainImg(0);
+      updateCardImg(modalProductId, modalImages.find(i => i.is_pinned)?.url || modalImages[0]?.url);
+    }
+    showToast('Foto adicionada!');
+  } catch (e) {
+    showToast('Erro ao salvar: ' + (e.message || ''));
+  }
+}
+
+async function uploadCatalogFile() {
+  if (!modalProductId) return;
+  const input = document.getElementById('catalog-img-file');
+  const file  = input.files[0];
+  if (!file) { showToast('Selecione uma foto primeiro.'); return; }
+  const formData = new FormData();
+  formData.append('image', file);
+  try {
+    const res = await fetch((window.APP_BASE || '') + `/api/products/${modalProductId}/images/upload`, {
+      method: 'POST', credentials: 'same-origin', body: formData,
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast('Erro: ' + (data.error || 'falha no upload')); return; }
+    input.value = '';
+    const p = await apiFetch('/api/products/' + modalProductId);
+    modalImages = p.images || [];
+    _imgCacheSet(modalProductId, modalImages);
+    buildThumbs();
+    if (modalImages.length) showMainImg(0);
+    updateCardImg(modalProductId, modalImages.find(i => i.is_pinned)?.url || modalImages[0]?.url);
+    showToast('Foto adicionada!');
+  } catch (e) { showToast('Erro ao enviar: ' + (e.message || '')); }
+}
+
+async function addCatalogUrl() {
+  if (!modalProductId) return;
+  const url = document.getElementById('catalog-img-url').value.trim();
+  if (!url) { showToast('Cole uma URL de imagem primeiro.'); return; }
+  try {
+    await apiFetch(`/api/products/${modalProductId}/images`, {
+      method: 'POST', body: JSON.stringify({ url, is_pinned: 1, is_manual: 1 }),
+    });
+    document.getElementById('catalog-img-url').value = '';
+    const p = await apiFetch('/api/products/' + modalProductId);
+    modalImages = p.images || [];
+    _imgCacheSet(modalProductId, modalImages);
+    buildThumbs();
+    if (modalImages.length) showMainImg(0);
+    updateCardImg(modalProductId, modalImages.find(i => i.is_pinned)?.url || modalImages[0]?.url);
+    showToast('Foto adicionada!');
+  } catch (e) { showToast('Erro ao salvar URL: ' + (e.message || '')); }
+}
 
 // ── Nav arrows ─────────────────────────────────────────────────────────────
 document.getElementById('mp-prev').addEventListener('click', () => {

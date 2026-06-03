@@ -26,7 +26,7 @@ document.addEventListener('click', e => {
 });
 
 // ── Navigation ─────────────────────────────────────────────────────────────
-const VALID_PAGES = ['dashboard','products','report','deactivate','pdfs'];
+const VALID_PAGES = ['dashboard','products','report','deactivate','pdfs','users'];
 
 function navigate(page) {
   if (!VALID_PAGES.includes(page)) page = 'dashboard';
@@ -48,6 +48,7 @@ function navigate(page) {
     loadDeactivate();
   }
   if (page === 'pdfs') loadImportHistory();
+  if (page === 'users') loadUsers();
 }
 
 // ── API helper ─────────────────────────────────────────────────────────────
@@ -391,6 +392,7 @@ function closeProductForm() {
   document.getElementById('prod-overlay').classList.remove('open');
   document.getElementById('f-img-url').value = '';
   document.getElementById('f-img-file').value = '';
+  document.getElementById('img-candidates').style.display = 'none';
 }
 
 // ── Product images ─────────────────────────────────────────────────────────
@@ -418,8 +420,14 @@ function loadProductImages(productId, images) {
   _renderImgGrid(images);
 }
 
+// Limpa o cache de imagens do catálogo (sessionStorage) para este produto
+function _clearCatalogImgCache(productId) {
+  try { sessionStorage.removeItem('gp_imgs_' + productId); } catch {}
+}
+
 async function pinImage(productId, imgId) {
   await api('PUT', `/products/${productId}/images/${imgId}/pin`);
+  _clearCatalogImgCache(productId);
   const data = await api('GET', `/products/${editingId}`);
   _renderImgGrid(data.images || []);
 }
@@ -427,6 +435,7 @@ async function pinImage(productId, imgId) {
 async function deleteImageById(imgId) {
   try {
     await api('DELETE', `/products/${editingId}/images/${imgId}`);
+    _clearCatalogImgCache(editingId);
     const data = await api('GET', `/products/${editingId}`);
     _renderImgGrid(data.images || []);
   } catch(e) { showToast('Erro ao remover: ' + e.message); }
@@ -436,6 +445,7 @@ async function clearProductImages() {
   if (!editingId) return;
   if (!confirm('Remover todas as fotos deste produto?')) return;
   await api('DELETE', `/products/${editingId}/images`);
+  _clearCatalogImgCache(editingId);
   _renderImgGrid([]);
 }
 
@@ -453,6 +463,7 @@ async function uploadImageFile() {
   const data = await res.json();
   if (!res.ok) { showToast('Erro: ' + (data.error || 'falha no upload')); return; }
   fileInput.value = '';
+  _clearCatalogImgCache(editingId);
   const imgs = await api('GET', `/products/${editingId}`);
   _renderImgGrid(imgs.images || []);
   showToast('Foto adicionada!');
@@ -463,8 +474,60 @@ async function addManualImage() {
   if (!url) return;
   await api('POST', `/products/${editingId}/images`, { url, is_pinned: 1, is_manual: 1 });
   document.getElementById('f-img-url').value = '';
+  _clearCatalogImgCache(editingId);
   const data = await api('GET', `/products/${editingId}`);
   _renderImgGrid(data.images || []);
+}
+
+async function searchProductImages() {
+  if (!editingId) return;
+  const btn = document.getElementById('btn-search-imgs');
+  btn.disabled = true;
+  btn.textContent = '⌛ Buscando…';
+  try {
+    const data = await api('GET', `/products/${editingId}/search-images?fresh=1`);
+    _renderCandidates(data.images || []);
+  } catch (e) {
+    showToast('Erro na busca: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔍 Buscar Imagens';
+  }
+}
+
+function _renderCandidates(images) {
+  const container = document.getElementById('img-candidates');
+  const grid      = document.getElementById('candidate-grid');
+  if (!images.length) {
+    showToast('Nenhuma imagem encontrada. Tente adicionar por URL ou arquivo.');
+    container.style.display = 'none';
+    return;
+  }
+  grid.innerHTML = images.map(img => `
+    <div class="img-tile" title="Clique para usar esta imagem">
+      <img src="${img.url}" loading="lazy" onerror="this.parentElement.style.display='none'"
+           onclick="selectCandidateImage(this.closest('.img-tile'), '${img.url.replace(/'/g, "\\'")}')">
+      <span class="img-tile-badge" onclick="selectCandidateImage(this.closest('.img-tile'), '${img.url.replace(/'/g, "\\'")}')">Usar</span>
+      <button class="img-tile-del" title="Não é esse produto"
+              onclick="this.closest('.img-tile').remove()">✕</button>
+    </div>
+  `).join('');
+  container.style.display = 'block';
+}
+
+async function selectCandidateImage(tile, url) {
+  tile.style.opacity = '.4';
+  try {
+    await api('POST', `/products/${editingId}/images`, { url, is_pinned: 1, is_manual: 1 });
+    document.getElementById('img-candidates').style.display = 'none';
+    _clearCatalogImgCache(editingId);
+    const data = await api('GET', `/products/${editingId}`);
+    _renderImgGrid(data.images || []);
+    showToast('Foto adicionada!');
+  } catch (e) {
+    tile.style.opacity = '1';
+    showToast('Erro ao salvar: ' + e.message);
+  }
 }
 
 async function saveProduct() {
@@ -1080,6 +1143,48 @@ async function applyCatUpdate(codes) {
   const s = document.getElementById('status-cat');
   s.textContent = `✅ ${data.updated} produtos atualizados.`;
   s.className = 'pdf-status ok';
+}
+
+// ── Users ──────────────────────────────────────────────────────────────────
+async function loadUsers() {
+  const tbody = document.getElementById('users-tbody');
+  tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;padding:2rem;color:var(--muted);font-size:.8rem">Carregando…</td></tr>';
+  try {
+    const data = await api('GET', '/users');
+    if (!data.users.length) {
+      tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;padding:2rem;color:var(--muted);font-size:.8rem">Nenhum usuário com acesso.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.users.map(u => `
+      <tr>
+        <td style="font-size:.8rem">${u.email}</td>
+        <td>
+          <select onchange="setUserRole('${u.user_id}', this.value, this)"
+                  style="border:1.5px solid var(--border2);border-radius:4px;padding:.35rem .55rem;font-size:.78rem;font-family:'Inter',sans-serif;background:var(--white);color:var(--text);cursor:pointer;width:100%">
+            <option value="admin"      ${u.role === 'admin'      ? 'selected' : ''}>Admin</option>
+            <option value="conferente" ${u.role === 'conferente' ? 'selected' : ''}>Conferente</option>
+          </select>
+        </td>
+      </tr>`).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="2" style="text-align:center;padding:2rem;color:var(--red);font-size:.8rem">❌ Erro: ${err.message}</td></tr>`;
+  }
+}
+
+async function setUserRole(userId, role, selectEl) {
+  const prev = selectEl.dataset.prev || selectEl.value;
+  selectEl.dataset.prev = role;
+  selectEl.disabled = true;
+  try {
+    await api('PATCH', `/users/${userId}/role`, { role });
+    showToast(`✅ Perfil atualizado para ${role === 'admin' ? 'Admin' : 'Conferente'}`);
+  } catch (err) {
+    showToast('Erro: ' + err.message);
+    selectEl.value = prev;
+    selectEl.dataset.prev = prev;
+  } finally {
+    selectEl.disabled = false;
+  }
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────

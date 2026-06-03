@@ -145,6 +145,9 @@ header{background:var(--white);border-bottom:1px solid var(--border);position:st
 .thumb.sel{border-color:var(--accent);box-shadow:0 0 0 2px rgba(200,16,46,.18)}
 .thumb.pinned::after{content:'★';position:absolute;bottom:2px;right:3px;font-size:.5rem;color:var(--accent);line-height:1}
 .thumb img{width:100%;height:100%;object-fit:contain;display:block;padding:3px}
+.thumb-del{display:none;position:absolute;top:2px;right:2px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:.5rem;cursor:pointer;align-items:center;justify-content:center;padding:0;line-height:1;z-index:2}
+.thumb:hover .thumb-del{display:flex}
+.thumb-del:hover{background:var(--red)}
 .no-imgs{font-size:.68rem;color:var(--muted2);font-style:italic;padding:.25rem 0}
 
 /* Pin & delete strip */
@@ -154,6 +157,27 @@ header{background:var(--white);border-bottom:1px solid var(--border);position:st
 .btn-pin.active{background:rgba(200,16,46,.08);border-color:var(--accent);color:var(--accent)}
 .btn-del-img{padding:.32rem .5rem;border-radius:3px;border:1.5px solid var(--border2);background:transparent;font-family:'Inter',sans-serif;font-size:.63rem;font-weight:600;cursor:pointer;color:var(--muted);transition:all .15s;display:none}
 .btn-del-img:hover{background:var(--red);border-color:var(--red);color:var(--white)}
+.btn-search-imgs{padding:.32rem .5rem;border-radius:3px;border:1.5px solid var(--border2);background:transparent;font-family:'Inter',sans-serif;font-size:.63rem;font-weight:600;cursor:pointer;color:var(--text2);transition:all .15s}
+.btn-search-imgs:hover{border-color:var(--text);color:var(--text)}
+.btn-search-imgs:disabled{opacity:.5;cursor:default}
+.candidates-area{margin-top:.6rem;border-top:1px solid var(--border);padding-top:.5rem}
+.candidates-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;font-size:.58rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.candidates-close{background:none;border:none;cursor:pointer;color:var(--muted);font-size:.75rem;padding:0 .15rem;line-height:1}
+.candidates-close:hover{color:var(--text)}
+.candidate-strip{display:flex;gap:.35rem;flex-wrap:wrap}
+.cand-tile{width:54px;height:54px;border:2px solid var(--border);border-radius:3px;overflow:hidden;cursor:pointer;flex-shrink:0;transition:border-color .15s;background:var(--white);position:relative}
+.cand-tile:hover{border-color:var(--accent)}
+.cand-tile img{width:100%;height:100%;object-fit:contain;display:block;padding:2px}
+.cand-tile-use{position:absolute;bottom:2px;left:2px;background:rgba(200,16,46,.85);color:#fff;font-size:.42rem;font-weight:700;padding:.08rem .25rem;border-radius:2px;pointer-events:none}
+.cand-tile-del{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.5);color:#fff;border:none;border-radius:50%;width:14px;height:14px;font-size:.5rem;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
+.cand-tile-del:hover{background:var(--red)}
+.catalog-img-add{margin-top:.6rem;border-top:1px solid var(--border);padding-top:.5rem;display:flex;flex-direction:column;gap:.3rem}
+.catalog-add-row{display:flex;gap:.3rem;align-items:center}
+.catalog-file-input{flex:1;font-size:.6rem;border:1px solid var(--border2);border-radius:3px;padding:.22rem .35rem;cursor:pointer;min-width:0;color:var(--text2)}
+.catalog-url-input{flex:1;font-size:.6rem;border:1.5px solid var(--border2);border-radius:3px;padding:.24rem .4rem;font-family:'Inter',sans-serif;color:var(--text);outline:none;min-width:0;transition:border-color .2s;background:var(--white)}
+.catalog-url-input:focus{border-color:var(--accent)}
+.catalog-add-btn{padding:.24rem .5rem;border-radius:3px;border:1.5px solid var(--border2);background:transparent;font-family:'Inter',sans-serif;font-size:.6rem;font-weight:600;cursor:pointer;color:var(--text2);white-space:nowrap;transition:all .15s;flex-shrink:0}
+.catalog-add-btn:hover{background:var(--accent);border-color:var(--accent);color:var(--white)}
 
 /* Info col */
 .modal-info-col{padding:1.4rem}

@@ -102,6 +102,24 @@
           <div class="thumb-actions">
             <button class="btn-pin" id="btn-pin">★ Fixar como capa</button>
             <button class="btn-del-img" id="btn-del-img">✕ Remover</button>
+            <button class="btn-search-imgs" id="btn-search-imgs" style="display:none">🔍 Buscar</button>
+          </div>
+          <div class="candidates-area" id="candidates-area" style="display:none">
+            <div class="candidates-head">
+              <span>Sugestões — clique para usar</span>
+              <button class="candidates-close" onclick="document.getElementById('candidates-area').style.display='none'">✕</button>
+            </div>
+            <div class="candidate-strip" id="candidate-strip"></div>
+          </div>
+          <div class="catalog-img-add" id="catalog-img-add" style="display:none">
+            <div class="catalog-add-row">
+              <input type="file" id="catalog-img-file" accept="image/*" capture="environment" class="catalog-file-input">
+              <button class="catalog-add-btn" onclick="uploadCatalogFile()">Enviar</button>
+            </div>
+            <div class="catalog-add-row">
+              <input type="url" id="catalog-img-url" placeholder="https://…" class="catalog-url-input">
+              <button class="catalog-add-btn" onclick="addCatalogUrl()">URL</button>
+            </div>
           </div>
         </div>
       </div>

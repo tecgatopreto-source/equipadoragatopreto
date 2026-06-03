@@ -30,7 +30,7 @@ Single-process Express app backed by **PostgreSQL via Supabase** (`pg` pool). Al
 **Entry point:** `server.js` — mounts route groups and serves static HTML files with SPA fallbacks (`/admin*`, `/conferente*`, `/*`).
 
 **Routes:**
-- `routes/auth.js` — `POST /api/auth/login` (Supabase Auth + `public.perfis` gate + local JWT) and `GET /api/auth/me`
+- `routes/auth.js` — `POST /api/auth/login` (Supabase Auth + `public.perfis` gate + local JWT), `POST /api/auth/logout`, and `GET /api/auth/me`
 - `routes/products.js` — full CRUD for products, manual image upload/management, reports
 - `routes/documents.js` — PDF upload and fiscal/gerencial import
 
@@ -62,7 +62,17 @@ Login is a two-step server-side flow in `routes/auth.js`:
    If no row is found, the Supabase session is invalidated and `401 no_access` is returned.
 3. **Local JWT** — if access is granted, the server issues its own JWT (expires 12 h) containing `{ id, username, role }`. The `role` comes from `public.perfis`, not from Supabase `app_metadata`.
 
-`middleware/auth.js` exports `authenticate` (any valid JWT) and `requireAdmin` (role must be `'admin'`). `JWT_SECRET` **must** be set as an env var — the server throws at startup if missing.
+**Session storage:** The JWT is stored in an **HttpOnly cookie** (`gp_auth`), not in localStorage. The token is never exposed to JavaScript. The response body on login returns only `{ user }` (no token).
+
+**Sliding expiration:** `middleware/auth.js` re-issues the cookie on every authenticated request, resetting the 12 h window. Users are only logged out if they make no API request for 12 consecutive hours. There is no client-side idle timeout.
+
+**Logout:** `POST /api/auth/logout` clears the cookie server-side. The frontend also removes `gp_user` from localStorage.
+
+**Cookie config:** `httpOnly: true`, `sameSite: 'lax'`, `maxAge: 12h`. `secure: true` when `NODE_ENV=production` (set this in production for HTTPS-only delivery).
+
+`middleware/auth.js` exports `authenticate` (any valid cookie JWT) and `requireAdmin` (role must be `'admin'`). `JWT_SECRET` **must** be set as an env var — the server throws at startup if missing.
+
+**Frontend state:** `gp_user` (JSON) is kept in localStorage for display (username, role check before first API call). It is cleared on logout. There is no `gp_token` in localStorage.
 
 ### User management
 
@@ -83,3 +93,6 @@ See `app/.env.example` for the full list. Required:
 - `JWT_SECRET` — min 48 chars hex; server crashes at startup if missing
 - `SUPABASE_URL` — Supabase project URL
 - `SUPABASE_ANON_KEY` — Supabase anon key (used only for Supabase Auth during login)
+
+Optional:
+- `NODE_ENV=production` — enables `Secure` flag on the session cookie (HTTPS-only); set in production
