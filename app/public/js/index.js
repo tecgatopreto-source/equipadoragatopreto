@@ -305,6 +305,27 @@ function buildThumbs() {
     t.addEventListener('click', () => showMainImg(i));
     strip.appendChild(t);
   });
+
+  const atLimit = modalImages.length >= 4;
+  const searchBtn  = document.getElementById('btn-search-imgs');
+  const fileInput  = document.getElementById('catalog-img-file');
+  const urlInput   = document.getElementById('catalog-img-url');
+  if (searchBtn) {
+    searchBtn.disabled     = atLimit;
+    searchBtn.style.opacity = atLimit ? '0.35' : '';
+    searchBtn.title        = atLimit ? 'Limite de 4 imagens atingido — remova uma foto para adicionar outra' : '';
+  }
+  if (fileInput) fileInput.disabled = atLimit;
+  if (urlInput)  urlInput.disabled  = atLimit;
+  document.querySelectorAll('.catalog-add-btn').forEach(btn => {
+    btn.disabled     = atLimit;
+    btn.style.opacity = atLimit ? '0.35' : '';
+    btn.title        = atLimit ? 'Limite de 4 imagens atingido' : '';
+  });
+  if (atLimit) {
+    const cand = document.getElementById('candidates-area');
+    if (cand) cand.style.display = 'none';
+  }
 }
 
 async function deleteThumbImg(imgId) {
@@ -453,11 +474,24 @@ async function openModal(id) {
     showMainImg(0);
     document.getElementById('btn-refresh').style.display = '';
   } else {
-    // Sem imagens — mostra placeholder, usuário decide se quer buscar
+    // Sem imagens — busca automática
+    document.getElementById('loader-txt').textContent = 'Buscando imagens…';
+    setBadge('🔍 Buscando…', 'isb-searching');
+    const result = await apiFetch('/api/products/' + id + '/search-images');
+    if (gen !== _modalGen) return;
+    modalImages = result.images || [];
     document.getElementById('ph-loader').classList.add('off');
-    setBadge('Sem fotos', 'isb-none');
-    buildThumbs();
-    document.getElementById('btn-refresh').style.display = '';
+    if (modalImages.length) {
+      _imgCacheSet(id, modalImages);
+      setBadge('✓ Imagens', 'isb-google');
+      buildThumbs();
+      showMainImg(0);
+      document.getElementById('btn-refresh').style.display = '';
+    } else {
+      setBadge('Sem fotos', 'isb-none');
+      buildThumbs();
+      document.getElementById('btn-refresh').style.display = '';
+    }
   }
 }
 
@@ -596,6 +630,10 @@ function _renderCatalogCandidates(images) {
 
 async function selectCatalogCandidate(url) {
   if (!modalProductId) return;
+  if (modalImages.length >= 4) {
+    showToast('Limite de 4 imagens atingido. Remova uma foto para adicionar outra.');
+    return;
+  }
   try {
     await apiFetch(`/api/products/${modalProductId}/images`, {
       method: 'POST',

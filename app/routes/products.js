@@ -547,6 +547,13 @@ router.post('/:id/images/upload', imgUpload.single('image'), async (req, res) =>
     }
     const url = `/uploads/product-images/${req.file.filename}`;
     await pool.query('DELETE FROM product_images WHERE product_id = $1 AND is_manual = 0', [req.params.id]);
+
+    const { rows: countRows } = await pool.query('SELECT COUNT(*) FROM product_images WHERE product_id=$1', [req.params.id]);
+    if (parseInt(countRows[0].count) >= 4) {
+      try { fs.unlinkSync(req.file.path); } catch {}
+      return res.status(400).json({ error: 'Limite de 4 imagens por produto atingido' });
+    }
+
     await pool.query('UPDATE product_images SET is_pinned = 0 WHERE product_id = $1', [req.params.id]);
     const { rows: ins } = await pool.query(
       'INSERT INTO product_images (product_id, url, is_pinned, is_manual) VALUES ($1, $2, 1, 1) RETURNING id',
@@ -568,10 +575,6 @@ router.post('/:id/images', async (req, res) => {
 
     const { rows } = await pool.query('SELECT id FROM products WHERE id = $1', [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Produto não encontrado' });
-
-    if (is_manual) {
-      await pool.query('DELETE FROM product_images WHERE product_id = $1 AND is_manual = 0', [req.params.id]);
-    }
 
     const { rows: countRows } = await pool.query('SELECT COUNT(*) FROM product_images WHERE product_id=$1', [req.params.id]);
     if (parseInt(countRows[0].count) >= 4) {
@@ -614,11 +617,23 @@ router.put('/:id/images/:imgId/pin', async (req, res) => {
 router.delete('/:id/images/:imgId', async (req, res) => {
   try {
     const pool = getDb();
-    const result = await pool.query(
-      'DELETE FROM product_images WHERE id=$1 AND product_id=$2',
+    const { rows: before } = await pool.query(
+      'SELECT is_pinned FROM product_images WHERE id=$1 AND product_id=$2',
       [req.params.imgId, req.params.id]
     );
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Imagem não encontrada' });
+    if (!before[0]) return res.status(404).json({ error: 'Imagem não encontrada' });
+    const wasPinned = before[0].is_pinned;
+
+    await pool.query('DELETE FROM product_images WHERE id=$1 AND product_id=$2', [req.params.imgId, req.params.id]);
+
+    if (wasPinned) {
+      await pool.query(
+        `UPDATE product_images SET is_pinned=1
+         WHERE id = (SELECT id FROM product_images WHERE product_id=$1 ORDER BY id ASC LIMIT 1)`,
+        [req.params.id]
+      );
+    }
+
     _invalidateImages();
     res.json({ message: 'Imagem removida' });
   } catch (err) {

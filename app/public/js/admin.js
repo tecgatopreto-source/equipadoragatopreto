@@ -398,6 +398,26 @@ function closeProductForm() {
 // ── Product images ─────────────────────────────────────────────────────────
 function _renderImgGrid(images) {
   const grid = document.getElementById('img-grid');
+  const atLimit = images.length >= 4;
+  const fileInput = document.getElementById('f-img-file');
+  const urlInput  = document.getElementById('f-img-url');
+  if (fileInput) fileInput.disabled = atLimit;
+  if (urlInput)  urlInput.disabled  = atLimit;
+  const uploadBtn = fileInput && fileInput.nextElementSibling;
+  const urlBtn    = urlInput  && urlInput.nextElementSibling;
+  if (uploadBtn) { uploadBtn.disabled = atLimit; uploadBtn.title = atLimit ? 'Limite de 4 imagens atingido' : ''; }
+  if (urlBtn)    { urlBtn.disabled    = atLimit; urlBtn.title    = atLimit ? 'Limite de 4 imagens atingido' : ''; }
+  const searchBtn = document.getElementById('btn-search-imgs');
+  if (searchBtn) {
+    searchBtn.disabled = atLimit;
+    searchBtn.style.opacity = atLimit ? '0.35' : '';
+    searchBtn.title = atLimit ? 'Limite de 4 imagens atingido — remova uma foto para adicionar outra' : '';
+  }
+  if (atLimit) {
+    const cand = document.getElementById('img-candidates');
+    if (cand) { cand.style.display = 'none'; }
+  }
+
   if (!images.length) {
     const svg = typeof getCategoryPlaceholder === 'function'
       ? getCategoryPlaceholder(editingProductName, editingProductCategoria)
@@ -407,7 +427,8 @@ function _renderImgGrid(images) {
   }
   grid.innerHTML = images.map(img => `
     <div class="img-tile${img.is_pinned ? ' pinned' : ''}" title="${img.is_pinned ? 'Foto principal' : 'Clique para fixar como principal'}">
-      <img src="${img.url}" loading="lazy" onerror="this.parentElement.style.display='none'"
+      <img src="${img.url}" loading="lazy"
+           onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span style=\'display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:.65rem;color:var(--muted);text-align:center;padding:.25rem\'>Imagem<br>indisponível</span>')"
            onclick="pinImage('${editingId}',${img.id})">
       ${img.is_pinned ? '<span class="img-tile-pin">✓ Principal</span>' : ''}
       ${img.is_manual ? '<span class="img-tile-badge">Manual</span>' : ''}
@@ -516,6 +537,11 @@ function _renderCandidates(images) {
 }
 
 async function selectCandidateImage(tile, url) {
+  const currentCount = document.querySelectorAll('#img-grid .img-tile-del').length;
+  if (currentCount >= 4) {
+    showToast('Limite de 4 imagens atingido. Remova uma foto para adicionar outra.');
+    return;
+  }
   tile.style.opacity = '.4';
   try {
     await api('POST', `/products/${editingId}/images`, { url, is_pinned: 1, is_manual: 1 });
@@ -526,7 +552,7 @@ async function selectCandidateImage(tile, url) {
     showToast('Foto adicionada!');
   } catch (e) {
     tile.style.opacity = '1';
-    showToast('Erro ao salvar: ' + e.message);
+    showToast(e.message.includes('Limite') ? 'Limite de 4 imagens atingido.' : 'Erro ao salvar: ' + e.message);
   }
 }
 
