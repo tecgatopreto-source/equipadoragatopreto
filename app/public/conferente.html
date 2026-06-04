@@ -16,43 +16,48 @@
 <!-- ╔══ APP SCREEN ═════════════════════════════════════╗ -->
 <div id="screen-app">
 
-  <!-- Header -->
-  <header class="app-header">
-    <div class="header-left">
-      <div class="logo-mark">Gato <span>Preto</span></div>
-      <div class="logo-sub">Conferente de Estoque</div>
-    </div>
-    <div class="header-right">
-      <span class="header-user" id="header-user"></span>
-      <a class="btn-logout" href="#" onclick="location.href=(window.APP_BASE||'')+'/';return false" style="text-decoration:none">Ver Catálogo</a>
-      <button class="btn-logout" onclick="logout()">Sair</button>
-    </div>
-  </header>
+  <!-- Sticky header group -->
+  <div class="sticky-top">
 
-  <!-- Search -->
-  <div class="search-bar">
-    <div class="search-input-wrap">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-      <input class="search-input" id="search-name" type="search" placeholder="Buscar por nome…"
-             autocomplete="off" autocorrect="off" spellcheck="false" inputmode="search">
-    </div>
-    <div class="search-input-wrap code-wrap">
-      <input class="search-input" id="search-code" type="search" placeholder="Buscar por código…"
-             autocomplete="off" autocorrect="off" spellcheck="false" inputmode="search">
-    </div>
-    <button class="filter-btn" id="alert-filter-btn" onclick="toggleAlertFilter()" title="Apenas alertas fiscais">
-      ⚠️
-    </button>
-  </div>
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="logo-mark">Gato <span>Preto</span></div>
+        <div class="logo-sub">Conferente de Estoque</div>
+      </div>
+      <div class="header-right">
+        <span class="header-user" id="header-user"></span>
+        <a class="btn-logout" href="#" onclick="location.href=(window.APP_BASE||'')+'/';return false" style="text-decoration:none">Ver Catálogo</a>
+        <button class="btn-logout" onclick="logout()">Sair</button>
+      </div>
+    </header>
 
-  <!-- Status chips -->
-  <div class="status-tabs">
-    <button class="chip active" data-status="T" onclick="setStatus('T',this)">Todos</button>
-    <button class="chip" data-status="0" onclick="setStatus('0',this)">Iguais</button>
-    <button class="chip" data-status="1" onclick="setStatus('1',this)">Divergentes</button>
-    <button class="chip" data-status="2" onclick="setStatus('2',this)">Só Fiscal</button>
+    <!-- Search -->
+    <div class="search-bar">
+      <div class="search-input-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input class="search-input" id="search-name" type="search" placeholder="Buscar por nome…"
+               autocomplete="off" autocorrect="off" spellcheck="false" inputmode="search">
+      </div>
+      <div class="search-input-wrap code-wrap">
+        <input class="search-input" id="search-code" type="search" placeholder="Buscar por código…"
+               autocomplete="off" autocorrect="off" spellcheck="false" inputmode="search">
+      </div>
+      <button class="filter-btn" id="alert-filter-btn" onclick="toggleAlertFilter()" title="Apenas alertas fiscais">
+        ⚠️
+      </button>
+    </div>
+
+    <!-- Status chips -->
+    <div class="status-tabs">
+      <button class="chip active" data-status="T" onclick="setStatus('T',this)">Todos</button>
+      <button class="chip" data-status="0" onclick="setStatus('0',this)">Iguais</button>
+      <button class="chip" data-status="1" onclick="setStatus('1',this)">Divergentes</button>
+      <button class="chip" data-status="2" onclick="setStatus('2',this)">Só Fiscal</button>
+    </div>
+
   </div>
 
   <!-- Product list -->

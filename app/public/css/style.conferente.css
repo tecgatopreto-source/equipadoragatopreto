@@ -17,13 +17,17 @@ body{
   overscroll-behavior:none;
 }
 
+/* ── STICKY WRAPPER ─────────────────────────── */
+.sticky-top{
+  position:fixed;top:0;left:0;right:0;z-index:200;
+  background:var(--white);
+}
+
 /* ── HEADER ─────────────────────────────────── */
 .app-header{
   background:var(--white);border-bottom:1px solid var(--border);
   padding:.65rem 1rem;padding-top:calc(.65rem + var(--safe-top));
   display:flex;align-items:center;justify-content:space-between;
-  position:sticky;top:0;z-index:200;
-  box-shadow:0 1px 6px rgba(0,0,0,.04);
 }
 .header-left{display:flex;flex-direction:column;gap:.05rem}
 .logo-mark{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:900;color:var(--text);line-height:1}
@@ -43,7 +47,7 @@ body{
 /* ── SEARCH BAR ──────────────────────────────── */
 .search-bar{
   background:var(--white);border-bottom:1px solid var(--border);
-  padding:.6rem 1rem;position:sticky;top:calc(54px + var(--safe-top));z-index:190;
+  padding:.6rem 1rem;
   display:flex;flex-wrap:nowrap;gap:.45rem;align-items:center;
 }
 .search-input-wrap{position:relative;flex:1 1 0;min-width:0}
@@ -75,21 +79,21 @@ body{
 /* ── STATUS CHIPS ───────────────────────────── */
 .status-tabs{
   background:var(--white);border-bottom:1px solid var(--border);
-  padding:.45rem 1rem;display:flex;gap:.35rem;overflow-x:auto;
-  position:sticky;top:calc(106px + var(--safe-top));z-index:180;
+  padding:.4rem 1rem;display:flex;gap:.3rem;overflow-x:auto;
   scrollbar-width:none;
 }
 .status-tabs::-webkit-scrollbar{display:none}
 .chip{
-  padding:.28rem .75rem;border-radius:20px;border:1.5px solid var(--border2);
-  background:transparent;font-family:'Inter',sans-serif;font-size:.68rem;font-weight:600;
-  cursor:pointer;color:var(--text2);white-space:nowrap;touch-action:manipulation;
-  transition:all .15s;flex-shrink:0;
+  padding:.3rem .78rem;border-radius:20px;border:1.5px solid var(--border2);
+  background:transparent;font-family:'Inter',sans-serif;font-size:.68rem;font-weight:500;
+  cursor:pointer;color:var(--muted);white-space:nowrap;touch-action:manipulation;
+  transition:all .15s;flex-shrink:0;letter-spacing:.01em;
 }
-.chip[data-status="T"].active{background:var(--text);border-color:var(--text);color:#fff}
-.chip[data-status="0"].active{background:rgba(97,211,48,.12);border-color:rgba(97,211,48,.5);color:#2a7a0a}
-.chip[data-status="1"].active{background:var(--red-bg);border-color:rgba(200,16,46,.35);color:var(--red)}
-.chip[data-status="2"].active{background:var(--amber-bg);border-color:rgba(181,98,10,.35);color:var(--amber)}
+.chip:hover{border-color:var(--text2);color:var(--text2)}
+.chip[data-status="T"].active{background:var(--text);border-color:var(--text);color:#fff;font-weight:700}
+.chip[data-status="0"].active{background:rgba(97,211,48,.12);border-color:rgba(97,211,48,.5);color:#2a7a0a;font-weight:700}
+.chip[data-status="1"].active{background:var(--red-bg);border-color:rgba(200,16,46,.35);color:var(--red);font-weight:700}
+.chip[data-status="2"].active{background:var(--amber-bg);border-color:rgba(181,98,10,.35);color:var(--amber);font-weight:700}
 .chip:active{opacity:.7}
 
 /* ── PRODUCT LIST ────────────────────────────── */
