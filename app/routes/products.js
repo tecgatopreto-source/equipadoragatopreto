@@ -572,6 +572,12 @@ router.post('/:id/images', async (req, res) => {
     if (is_manual) {
       await pool.query('DELETE FROM product_images WHERE product_id = $1 AND is_manual = 0', [req.params.id]);
     }
+
+    const { rows: countRows } = await pool.query('SELECT COUNT(*) FROM product_images WHERE product_id=$1', [req.params.id]);
+    if (parseInt(countRows[0].count) >= 4) {
+      return res.status(400).json({ error: 'Limite de 4 imagens por produto atingido' });
+    }
+
     if (is_pinned) {
       await pool.query('UPDATE product_images SET is_pinned=0 WHERE product_id=$1', [req.params.id]);
     }
