@@ -160,16 +160,18 @@ function renderPagination() {
 
 /* ═══ BOTTOM SHEET ═══════════════════════════════════════════════════ */
 async function openSheet(id) {
-  let p = products.find(x => x.id === id);
-  if (!p) {
-    try {
-      const res = await fetch(BASE + `/api/products/${encodeURIComponent(id)}`, {
-        credentials: 'same-origin',
-      });
-      p = await res.json();
-    } catch { return; }
-  }
+  let p;
+  try {
+    const res = await fetch(BASE + `/api/products/${encodeURIComponent(id)}`, {
+      credentials: 'same-origin',
+    });
+    p = await res.json();
+  } catch { return; }
   currentProduct = p;
+
+  renderSheetImage(p);
+  const hasPinned = (p.images || []).some(i => i.is_pinned);
+  if (!hasPinned) autoAssignImage();
 
   document.getElementById('sheet-name').textContent = p.name;
   document.getElementById('sheet-ref').textContent  = p.id;
@@ -207,8 +209,110 @@ async function openSheet(id) {
 function closeSheet() {
   document.getElementById('sheet-overlay').classList.remove('open');
   document.getElementById('bottom-sheet').classList.remove('open');
+  const cand = document.getElementById('img-candidates');
+  cand.style.display = 'none';
+  cand.innerHTML = '';
   currentProduct = null;
   document.activeElement?.blur();
+}
+
+/* ═══ IMAGE ══════════════════════════════════════════════════════════ */
+function renderSheetImage(p) {
+  const box  = document.getElementById('sheet-img-box');
+  const cand = document.getElementById('img-candidates');
+  cand.style.display = 'none';
+  cand.innerHTML = '';
+
+  const pinned = (p.images || []).find(i => i.is_pinned);
+  if (pinned) {
+    box.innerHTML = `<img class="sheet-img" src="${esc(pinned.url)}" alt="" onerror="this.style.display='none'">`;
+  } else {
+    box.innerHTML = '<span style="font-size:.75rem;color:var(--muted2)">Sem foto</span>';
+  }
+}
+
+async function autoAssignImage() {
+  if (!currentProduct) return;
+  const box = document.getElementById('sheet-img-box');
+  box.innerHTML = '<span style="font-size:.7rem;color:var(--muted2)">⌛</span>';
+  try {
+    const res  = await fetch(BASE + `/api/products/${encodeURIComponent(currentProduct.id)}/search-images?fresh=1`, { credentials: 'same-origin' });
+    const data = await res.json();
+    const first = (data.images || [])[0];
+    if (!first) { renderSheetImage(currentProduct); return; }
+
+    const save = await fetch(BASE + `/api/products/${encodeURIComponent(currentProduct.id)}/images`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: first.url, is_pinned: 1, is_manual: 0 }),
+    });
+    if (!save.ok) throw new Error();
+
+    if (!currentProduct.images) currentProduct.images = [];
+    currentProduct.images.forEach(i => { i.is_pinned = 0; });
+    currentProduct.images.push({ url: first.url, is_pinned: 1, is_manual: 0 });
+    renderSheetImage(currentProduct);
+  } catch {
+    renderSheetImage(currentProduct);
+  }
+}
+
+async function searchImages() {
+  if (!currentProduct) return;
+  const btn  = document.getElementById('btn-search-imgs');
+  const cand = document.getElementById('img-candidates');
+  btn.disabled    = true;
+  btn.textContent = '⌛ Buscando…';
+  cand.style.display = 'none';
+  try {
+    const res  = await fetch(BASE + `/api/products/${encodeURIComponent(currentProduct.id)}/search-images?fresh=1`, { credentials: 'same-origin' });
+    const data = await res.json();
+    renderCandidates(data.images || []);
+  } catch {
+    showToast('Erro ao buscar imagens', 'error');
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '🔍 Buscar Imagem';
+  }
+}
+
+function renderCandidates(images) {
+  const cand = document.getElementById('img-candidates');
+  if (!images.length) {
+    cand.innerHTML = '<p style="font-size:.75rem;color:var(--muted);text-align:center;padding:.5rem 0">Nenhuma imagem encontrada.</p>';
+    cand.style.display = 'block';
+    return;
+  }
+  cand.innerHTML = images.slice(0, 6).map(img =>
+    `<div class="img-candidate" onclick="selectImage('${esc(img.url)}',this)">
+       <img src="${esc(img.url)}" alt="" loading="lazy" onerror="this.closest('.img-candidate').style.display='none'">
+     </div>`
+  ).join('');
+  cand.style.display = 'grid';
+}
+
+async function selectImage(url, el) {
+  if (!currentProduct) return;
+  document.querySelectorAll('.img-candidate').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  try {
+    const res = await fetch(BASE + `/api/products/${encodeURIComponent(currentProduct.id)}/images`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, is_pinned: 1, is_manual: 1 }),
+    });
+    if (!res.ok) throw new Error();
+    if (!currentProduct.images) currentProduct.images = [];
+    currentProduct.images.forEach(i => { i.is_pinned = 0; });
+    currentProduct.images.push({ url, is_pinned: 1, is_manual: 1 });
+    renderSheetImage(currentProduct);
+    showToast('✅ Imagem salva!', 'success');
+  } catch {
+    showToast('Erro ao salvar imagem', 'error');
+    el.classList.remove('selected');
+  }
 }
 
 /* ═══ STOCK RULE ═════════════════════════════════════════════════════ */
