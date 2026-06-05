@@ -67,7 +67,10 @@ async function apiFetch(path, opts = {}) {
     ...opts,
     headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
   });
-  return r.json();
+  let data;
+  try { data = await r.json(); } catch (_) { data = {}; }
+  if (!r.ok) throw new Error(data.error || `Erro ${r.status}`);
+  return data;
 }
 
 // ── Stats ──────────────────────────────────────────────────────────────────
@@ -138,7 +141,7 @@ async function fetchProducts(page = 1, reset = false) {
 
   if (lastErr && reset) {
     document.getElementById('grid').innerHTML =
-      '<div class="empty"><h3>Erro ao carregar produtos</h3><p>Verifique a conexão ou recarregue a página.</p></div>';
+      `<div class="empty"><h3>Erro ao carregar produtos</h3><p>${lastErr.message || 'Verifique a conexão ou recarregue a página.'}</p></div>`;
   }
 
   document.getElementById('lm').disabled = false;
