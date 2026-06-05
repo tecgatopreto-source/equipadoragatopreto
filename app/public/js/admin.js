@@ -59,13 +59,14 @@ async function api(method, path, body) {
     headers: { 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined
   });
-  const data = await res.json();
+  let data;
+  try { data = await res.json(); } catch (_) { data = {}; }
   if (res.status === 401) {
     localStorage.removeItem('gp_user');
     location.href = BASE + '/login.html';
     return;
   }
-  if (!res.ok) throw new Error(data.error || 'Erro na API');
+  if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
   return data;
 }
 
@@ -302,48 +303,53 @@ async function loadProducts(page) {
   const catParam      = catFilter   ? `&cat=${encodeURIComponent(catFilter)}` : '';
   const nameParam     = nameQ ? `&name_q=${encodeURIComponent(nameQ)}` : '';
   const codeParam     = codeQ ? `&code_q=${encodeURIComponent(codeQ)}` : '';
-  const data = await api('GET',
-    `/products?status=${status}&page=${page}&limit=${LIMIT}&sort=${sortCol}&order=${sortDir}${nameParam}${codeParam}${alertParam}${disabledParam}${catParam}`
-  );
-  if (reqId !== _loadReqId) return;
+  try {
+    const data = await api('GET',
+      `/products?status=${status}&page=${page}&limit=${LIMIT}&sort=${sortCol}&order=${sortDir}${nameParam}${codeParam}${alertParam}${disabledParam}${catParam}`
+    );
+    if (reqId !== _loadReqId) return;
 
-  if (!data.products.length) {
-    tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:2rem;color:var(--muted)">Nenhum produto encontrado</td></tr>';
-  } else {
-    tbody.innerHTML = data.products.map(p => `
-      <tr>
-        <td style="font-weight:600;font-size:.72rem">${p.id}</td>
-        <td>
-          ${p.name}
-          ${p.is_disabled ? '<span class="badge-disabled" style="margin-left:.4rem">Desativado</span>' : ''}
-        </td>
-        <td class="col-fiscal">${fmt(p.price_fiscal)}</td>
-        <td class="col-mgmt">${fmt(p.price_mgmt ?? p.snap_price_mgmt)}</td>
-        <td class="col-fiscal">${p.stock_fiscal != null ? Number(p.stock_fiscal).toLocaleString('pt-BR') : '—'}</td>
-        <td class="col-mgmt">${p.snap_stock_mgmt != null ? Number(p.snap_stock_mgmt).toLocaleString('pt-BR') : '—'}</td>
-        ${diffCell(p.diff_pct, p.stock_fiscal, p.snap_stock_mgmt)}
-        <td class="col-real" style="font-weight:700">
-          ${p.stock_real != null ? Number(p.stock_real).toLocaleString('pt-BR') : '<span style="color:var(--muted2)">·</span>'}
-        </td>
-        ${p.stock_real != null ? pctCell(p.real_pct) : '<td class="pct-cell" style="color:var(--muted2)">·</td>'}
-        <td>${p.fiscal_alert ? '<span class="badge-alert">⚠️ Fiscal</span>' : '<span style="color:var(--muted2);font-size:.72rem">—</span>'}</td>
-        <td>${badge(p.status)}</td>
-        <td>
-          <div class="td-actions">
-            <button class="btn-sm" onclick="editProduct('${p.id}')">Editar</button>
-            <button class="btn-sm btn-danger" onclick="deleteProduct('${p.id}','${p.name.replace(/'/g,"\\'")}')">Del</button>
-          </div>
-        </td>
-      </tr>
-    `).join('');
+    if (!data.products.length) {
+      tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:2rem;color:var(--muted)">Nenhum produto encontrado</td></tr>';
+    } else {
+      tbody.innerHTML = data.products.map(p => `
+        <tr>
+          <td style="font-weight:600;font-size:.72rem">${p.id}</td>
+          <td>
+            ${p.name}
+            ${p.is_disabled ? '<span class="badge-disabled" style="margin-left:.4rem">Desativado</span>' : ''}
+          </td>
+          <td class="col-fiscal">${fmt(p.price_fiscal)}</td>
+          <td class="col-mgmt">${fmt(p.price_mgmt ?? p.snap_price_mgmt)}</td>
+          <td class="col-fiscal">${p.stock_fiscal != null ? Number(p.stock_fiscal).toLocaleString('pt-BR') : '—'}</td>
+          <td class="col-mgmt">${p.snap_stock_mgmt != null ? Number(p.snap_stock_mgmt).toLocaleString('pt-BR') : '—'}</td>
+          ${diffCell(p.diff_pct, p.stock_fiscal, p.snap_stock_mgmt)}
+          <td class="col-real" style="font-weight:700">
+            ${p.stock_real != null ? Number(p.stock_real).toLocaleString('pt-BR') : '<span style="color:var(--muted2)">·</span>'}
+          </td>
+          ${p.stock_real != null ? pctCell(p.real_pct) : '<td class="pct-cell" style="color:var(--muted2)">·</td>'}
+          <td>${p.fiscal_alert ? '<span class="badge-alert">⚠️ Fiscal</span>' : '<span style="color:var(--muted2);font-size:.72rem">—</span>'}</td>
+          <td>${badge(p.status)}</td>
+          <td>
+            <div class="td-actions">
+              <button class="btn-sm" onclick="editProduct('${p.id}')">Editar</button>
+              <button class="btn-sm btn-danger" onclick="deleteProduct('${p.id}','${p.name.replace(/'/g,"\\'")}')">Del</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    const totalPages = Math.ceil(data.total / LIMIT);
+    const start = ((page - 1) * LIMIT) + 1;
+    const end   = Math.min(page * LIMIT, data.total);
+    document.getElementById('pg-info').textContent = `${start}–${end} de ${data.total.toLocaleString('pt-BR')}`;
+    document.getElementById('pg-prev').disabled = page <= 1;
+    document.getElementById('pg-next').disabled = page >= totalPages;
+  } catch (err) {
+    if (reqId !== _loadReqId) return;
+    tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:2rem;color:var(--red,#e53)">Erro ao carregar produtos: ${err.message}</td></tr>`;
   }
-
-  const totalPages = Math.ceil(data.total / LIMIT);
-  const start = ((page - 1) * LIMIT) + 1;
-  const end   = Math.min(page * LIMIT, data.total);
-  document.getElementById('pg-info').textContent = `${start}–${end} de ${data.total.toLocaleString('pt-BR')}`;
-  document.getElementById('pg-prev').disabled = page <= 1;
-  document.getElementById('pg-next').disabled = page >= totalPages;
 }
 
 // ── Product form ───────────────────────────────────────────────────────────
