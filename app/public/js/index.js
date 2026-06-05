@@ -725,7 +725,7 @@ document.getElementById('q-name').addEventListener('input', e => {
     if (currentNameQ) localStorage.setItem('gp_catalog_name_q', currentNameQ);
     else localStorage.removeItem('gp_catalog_name_q');
     fetchProducts(1, true);
-  }, 380);
+  }, 600);
 });
 document.getElementById('qc-name').addEventListener('click', () => {
   document.getElementById('q-name').value = '';
@@ -742,7 +742,7 @@ document.getElementById('q-code').addEventListener('input', e => {
     if (currentCodeQ) localStorage.setItem('gp_catalog_code_q', currentCodeQ);
     else localStorage.removeItem('gp_catalog_code_q');
     fetchProducts(1, true);
-  }, 380);
+  }, 600);
 });
 document.getElementById('qc-code').addEventListener('click', () => {
   document.getElementById('q-code').value = '';
