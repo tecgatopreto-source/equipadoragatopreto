@@ -73,20 +73,20 @@ const _SVG_GENERIC = `<svg viewBox="0 0 80 60" xmlns="http://www.w3.org/2000/svg
 </svg>`;
 
 function getCategoryPlaceholder(productName, categoria, isDisabled) {
+  if (isDisabled) return _svgImg('desativado');
   if (categoria) {
     const key = categoria.trim().replace(/\s+/g, ' ').toUpperCase();
     if (_CAT_SVG[key]) return _svgImg(_CAT_SVG[key]);
   }
-  if (isDisabled) return _svgImg('desativado');
   return _SVG_GENERIC;
 }
 
 function getCategorySvgPath(categoria, isDisabled) {
+  if (isDisabled) return `${_SVG_BASE}/svg/desativado.svg`;
   if (categoria) {
     const key = categoria.trim().replace(/\s+/g, ' ').toUpperCase();
     const file = _CAT_SVG[key];
     if (file) return `${_SVG_BASE}/svg/${file}.svg`;
   }
-  if (isDisabled) return `${_SVG_BASE}/svg/desativado.svg`;
   return null;
 }
