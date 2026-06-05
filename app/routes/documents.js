@@ -41,6 +41,40 @@ function runUpload(req, res) {
   });
 }
 
+// POST /api/documents/upload/grupos — preview de grupos (sem escrever no banco)
+router.post('/upload/grupos', requireAdmin, async (req, res) => {
+  try { await runUpload(req, res); }
+  catch (err) { return res.status(400).json({ error: err.message }); }
+  if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+
+  let rawText;
+  try {
+    const parsed = await pdfParse(fs.readFileSync(req.file.path));
+    rawText = parsed.text;
+  } catch (err) {
+    return res.status(422).json({ error: 'Não foi possível ler o PDF: ' + err.message });
+  }
+  try { fs.unlinkSync(req.file.path); } catch (_) {}
+
+  const pool = getDb();
+  let productSet;
+  try {
+    const { rows } = await pool.query('SELECT id FROM products');
+    productSet = new Set(rows.map(r => r.id));
+  } catch (err) {
+    return res.status(500).json({ error: 'Erro ao carregar produtos: ' + err.message });
+  }
+
+  const groups   = parseGrupos(rawText, productSet);
+  const nonSkip  = groups.filter(g => !g.skip);
+  res.json({
+    totalGroups:   nonSkip.length,
+    totalFound:    nonSkip.reduce((s, g) => s + g.found,    0),
+    totalNotFound: groups.reduce((s, g) => s + g.notFound,  0),
+    groups,
+  });
+});
+
 // POST /api/documents/upload/:type
 router.post('/upload/:type', requireAdmin, async (req, res) => {
   // 1. Recebe o arquivo
@@ -228,55 +262,66 @@ router.get('/rawtext/:id', requireAdmin, async (req, res) => {
   }
 });
 
-// POST /api/documents/categorize — extrai códigos do PDF, retorna matches no banco
-router.post('/categorize', requireAdmin, async (req, res) => {
-  try { await runUpload(req, res); }
-  catch (err) { return res.status(400).json({ error: err.message }); }
-  if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
 
-  let rawText;
-  try {
-    const parsed = await pdfParse(fs.readFileSync(req.file.path));
-    rawText = parsed.text;
-  } catch (err) {
-    return res.status(422).json({ error: 'Não foi possível ler o PDF: ' + err.message });
+// POST /api/documents/apply-groups — aplica as categorias de todos os grupos
+router.post('/apply-groups', requireAdmin, async (req, res) => {
+  const { groups } = req.body || {};
+  if (!Array.isArray(groups) || !groups.length)
+    return res.status(400).json({ error: 'Nenhum grupo enviado.' });
+
+  const pool = getDb();
+  let updated = 0, groupsApplied = 0;
+
+  for (const g of groups) {
+    if (!Array.isArray(g.productIds) || !g.productIds.length) continue;
+
+    if (g.skip) {
+      // NIVEL MESTRE: apenas limpa categoria, não mexe em is_disabled
+      try {
+        const { rowCount } = await pool.query(
+          'UPDATE products SET categoria = NULL, updated_at = NOW() WHERE id = ANY($1::text[])',
+          [g.productIds]
+        );
+        updated += rowCount;
+      } catch (err) {
+        console.error('[apply-groups] NIVEL MESTRE erro:', err.message);
+      }
+      continue;
+    }
+
+    if (!g.name) continue;
+    try {
+      let rowCount;
+      if (g.disabled) {
+        // Grupo "01 DESATIVADO": marca is_disabled = 1, categoria = NULL
+        ({ rowCount } = await pool.query(
+          'UPDATE products SET is_disabled = 1, categoria = NULL, updated_at = NOW() WHERE id = ANY($1::text[])',
+          [g.productIds]
+        ));
+      } else {
+        // Grupo normal: atribui categoria e garante is_disabled = 0
+        ({ rowCount } = await pool.query(
+          'UPDATE products SET categoria = $1, is_disabled = 0, updated_at = NOW() WHERE id = ANY($2::text[])',
+          [g.name, g.productIds]
+        ));
+      }
+      updated += rowCount;
+      groupsApplied++;
+    } catch (err) {
+      console.error('[apply-groups] Erro grupo', g.name + ':', err.message);
+    }
   }
-  try { fs.unlinkSync(req.file.path); } catch (_) {}
 
-  const pool = getDb();
-  const { rows: allProducts } = await pool.query('SELECT id, name, categoria FROM products');
-  const productMap = new Map(allProducts.map(p => [p.id, p]));
+  cache.clear('products:');
+  cache.clear('stats');
+  cache.clear('action-stats');
+  try {
+    await pool.query('REFRESH MATERIALIZED VIEW "CatalogoProdutos".product_stats');
+  } catch (e) {
+    console.error('[apply-groups] REFRESH VIEW falhou:', e.message);
+  }
 
-  // Usa o mesmo parser estruturado do import: só aceita IDs seguidos de nome + estoque + preço
-  const extracted = parsePdf(rawText, productMap, 'fiscal');
-  const codesInPdf = [...new Set(extracted.map(e => e.productId).filter(id => productMap.has(id)))];
-
-  if (!codesInPdf.length) return res.json({ total: 0, found: 0, codes: [], products: [] });
-
-  const products = codesInPdf.map(id => {
-    const p = productMap.get(id);
-    return { id: p.id, name: p.name, categoria: p.categoria };
-  });
-  res.json({
-    total: codesInPdf.length,
-    found: codesInPdf.length,
-    codes: codesInPdf,
-    products,
-  });
-});
-
-// POST /api/documents/set-category — aplica categoria a lista de códigos
-router.post('/set-category', requireAdmin, async (req, res) => {
-  const { codes, categoria } = req.body || {};
-  if (!Array.isArray(codes) || !codes.length || !categoria)
-    return res.status(400).json({ error: 'Parâmetros inválidos.' });
-
-  const pool = getDb();
-  const { rowCount } = await pool.query(
-    'UPDATE products SET categoria = $1, updated_at = NOW() WHERE id = ANY($2::text[])',
-    [categoria.trim(), codes]
-  );
-  res.json({ updated: rowCount });
+  res.json({ updated, groups: groupsApplied });
 });
 
 // GET /api/documents/
@@ -289,6 +334,83 @@ router.get('/', requireAdmin, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Parser de Grupos de Produto (PDF "Grupos de Produto" do Simples Varejo)
+//
+// Formato real do PDF (extraído via pdf-parse):
+//   - Cabeçalhos de grupo aparecem APÓS cada bloco "Total por grupo de produto:"
+//     e logo no início (primeiro grupo). Formato: "NOME DO GRUPO - <código>"
+//     (NIVEL MESTRE tem decoradores: "---- NIVEL MESTRE ---- - 0")
+//   - Cada produto ocupa várias linhas: NOME, EMBALAGEM, ESTOQUE, PREÇO, TOTAL, CÓDIGO
+//     O CÓDIGO é um número inteiro isolado que vem por ÚLTIMO (após o total)
+//   - Cabeçalhos de página se repetem em cada página (Página N de N, CÓDIGO, etc.)
+// ---------------------------------------------------------------------------
+function parseGrupos(rawText, productSet) {
+  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+
+  // Linhas de cabeçalho de página que se repetem — ignorar sempre
+  const PAGE_WORDS = new Set(['CÓDIGO', 'PRODUTO', 'EMBALAGEM', 'ESTOQUE', 'REFERÊNCIA', 'PREÇO', 'TOTAL']);
+  const isPageSkip = l =>
+    PAGE_WORDS.has(l) ||
+    /^Página \d+ de \d+$/i.test(l) ||
+    /^\d{2}\/\d{2}\/\d{4}/.test(l) ||
+    /^PREÇO \+ ESTOQUE/i.test(l) ||
+    /^ESTOQUE ZERO/i.test(l) ||
+    /^ATIVO: TODOS/i.test(l) ||
+    /^DESCRIÇÃO DO PRODUTO/i.test(l) ||
+    /^ORDEM DE SAÍDA/i.test(l);
+
+  // Linha numérica: inteiro puro ou decimal (ex: "81,00", "-158.406,84", "257")
+  const isNumber = l => /^-?[\d.]+,\d{2}$/.test(l) || /^-?\d+$/.test(l);
+  // Código de produto: inteiro puro sem sinal (ex: "9528", "10055")
+  const isPureInt = l => /^\d+$/.test(l);
+
+  const groups   = [];
+  let current    = null;
+  let skipNums   = false;  // após "Total por grupo", pular linhas numéricas
+  let wantHeader = true;   // próxima linha não-numérica é cabeçalho de grupo
+
+  for (const line of lines) {
+    if (isPageSkip(line)) continue;
+
+    // Marcadores de total → ativar modo de pulo de números e espera por próximo grupo
+    if (line === 'Total por grupo de produto:' || /^Total geral/i.test(line)) {
+      skipNums   = true;
+      wantHeader = false;
+      continue;
+    }
+
+    if (skipNums) {
+      if (isNumber(line)) continue; // pular valores/contagem do total
+      // Primeira linha não-numérica após o bloco de total = cabeçalho do próximo grupo
+      skipNums   = false;
+      wantHeader = true;
+    }
+
+    if (wantHeader) {
+      wantHeader = false;
+      const m = /^(.*) - (\d+)$/.exec(line);
+      if (m) {
+        if (current) groups.push(current);
+        const code = parseInt(m[2]);
+        // Remove decoradores "----" do NIVEL MESTRE
+        const name = m[1].replace(/^[-\s]+/, '').replace(/[-\s]+$/, '').replace(/\s{2,}/g, ' ').trim();
+        current = { name, code, skip: code === 0, disabled: code === 50, productIds: [], found: 0, notFound: 0 };
+      }
+      continue; // seja cabeçalho ou não, não tratar como código de produto
+    }
+
+    // Dentro de um grupo: código de produto é um inteiro puro (vem após nome/emb/estoque/preço/total)
+    if (current && isPureInt(line)) {
+      if (productSet.has(line)) { current.productIds.push(line); current.found++; }
+      else                      { current.notFound++; }
+    }
+  }
+  if (current) groups.push(current);
+
+  return groups;
+}
 
 // ---------------------------------------------------------------------------
 // PDF parser (unchanged — pure JS logic, no DB calls)

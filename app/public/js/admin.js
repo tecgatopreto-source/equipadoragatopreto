@@ -230,7 +230,7 @@ function debSearch() {
     if (codeVal) localStorage.setItem('gp_admin_code_q', codeVal);
     else localStorage.removeItem('gp_admin_code_q');
     loadProducts(1);
-  }, 350);
+  }, 600);
 }
 
 function toggleAlertFilter() {
@@ -1069,112 +1069,92 @@ async function loadImportHistory() {
 }
 
 
-// ── Categorização por PDF ──────────────────────────────────────────────────
-function onDropCat(e) {
-  e.preventDefault();
-  offDrag('cat');
-  const file = e.dataTransfer.files[0];
-  if (file) processCatPdf(file);
+
+// ── Importação de Grupos ───────────────────────────────────────────────────
+let _gruposData = null;
+
+function handleGruposFile() {
+  const input = document.getElementById('file-grupos');
+  if (input.files[0]) processGruposPdf(input.files[0]);
 }
 
-function handleCatFile() {
-  const input = document.getElementById('file-cat');
-  if (input.files[0]) processCatPdf(input.files[0]);
-}
-
-function clearCatPreview() {
-  document.getElementById('cat-preview').style.display = 'none';
-  document.getElementById('cat-preview').innerHTML = '';
-  const s = document.getElementById('status-cat');
-  s.textContent = 'Nenhum arquivo selecionado.';
-  s.className = 'pdf-status';
-  document.getElementById('file-cat').value = '';
-}
-
-async function processCatPdf(file) {
+async function processGruposPdf(file) {
   if (!file.name.toLowerCase().endsWith('.pdf')) {
-    document.getElementById('status-cat').textContent = '❌ Apenas arquivos PDF.';
+    document.getElementById('status-grupos').textContent = '❌ Apenas arquivos PDF.';
     return;
   }
-  const catInput = document.getElementById('cat-name');
-  if (!catInput.value.trim()) {
-    const auto = file.name.split('_')[0].replace(/[^a-zA-ZÀ-ÿ0-9\s]/g, '').trim();
-    if (auto) catInput.value = auto;
-  }
-  const s = document.getElementById('status-cat');
+  const s = document.getElementById('status-grupos');
   s.className = 'pdf-status';
-  s.textContent = `Processando "${file.name}"…`;
+  s.textContent = `Analisando "${file.name}"…`;
+  document.getElementById('grupos-preview').style.display = 'none';
 
   const form = new FormData();
   form.append('pdf', file);
   let res, data;
   try {
-    res  = await fetch(BASE + '/api/documents/categorize', {
-      method: 'POST',
-      credentials: 'same-origin',
-      body: form,
-    });
+    res  = await fetch(BASE + '/api/documents/upload/grupos', { method: 'POST', credentials: 'same-origin', body: form });
     data = await res.json();
-  } catch (err) {
-    s.textContent = '❌ Erro de rede: ' + err.message;
-    return;
-  }
-  if (!res.ok) { s.textContent = '❌ ' + (data.error || 'Erro'); return; }
+  } catch (err) { s.textContent = '❌ Erro de rede: ' + err.message; return; }
+  if (!res.ok)   { s.textContent = '❌ ' + (data.error || 'Erro'); return; }
 
-  document.getElementById('file-cat').value = '';
-  const cat = catInput.value.trim() || '(sem nome)';
-  const preview = document.getElementById('cat-preview');
+  _gruposData = data;
+  document.getElementById('file-grupos').value = '';
+  s.textContent = `${data.totalGroups} grupos encontrados, ${data.totalFound.toLocaleString('pt-BR')} produtos serão atualizados.`;
+
+  const preview = document.getElementById('grupos-preview');
   preview.style.display = 'block';
-
-  if (!data.found) {
-    preview.innerHTML = `<div style="color:var(--amber);font-size:.75rem">Nenhum código do PDF encontrado no banco. Total no PDF: ${data.total}.</div>`;
-    s.textContent = 'Nenhum produto encontrado.';
-    return;
-  }
-
-  const codesJson = JSON.stringify(data.codes);
   preview.innerHTML = `
-    <div style="font-size:.73rem;font-weight:600;margin-bottom:.5rem">${data.found} de ${data.total} código(s) do PDF encontrados no banco.</div>
-    <div style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:4px;margin-bottom:.75rem">
+    <div style="font-size:.73rem;font-weight:600;margin-bottom:.5rem">
+      ${data.totalGroups} grupos ativos
+      ${data.totalNotFound > 0 ? `<span style="color:var(--amber);margin-left:.5rem">(${data.totalNotFound} códigos não encontrados no banco)</span>` : ''}
+    </div>
+    <div style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:4px;margin-bottom:.75rem">
       <table style="width:100%;font-size:.68rem;border-collapse:collapse">
         <thead><tr>
-          <th style="padding:.3rem .75rem;text-align:left;background:var(--surface);font-size:.6rem;color:var(--muted);border-bottom:1px solid var(--border)">Código</th>
-          <th style="padding:.3rem .75rem;text-align:left;background:var(--surface);font-size:.6rem;color:var(--muted);border-bottom:1px solid var(--border)">Nome</th>
-          <th style="padding:.3rem .75rem;text-align:left;background:var(--surface);font-size:.6rem;color:var(--muted);border-bottom:1px solid var(--border)">Categoria atual</th>
+          <th style="padding:.3rem .75rem;text-align:left;background:var(--surface);font-size:.6rem;color:var(--muted);border-bottom:1px solid var(--border)">Grupo → Categoria</th>
+          <th style="padding:.3rem .75rem;text-align:right;background:var(--surface);font-size:.6rem;color:var(--muted);border-bottom:1px solid var(--border)">Produtos</th>
+          <th style="padding:.3rem .75rem;text-align:right;background:var(--surface);font-size:.6rem;color:var(--muted);border-bottom:1px solid var(--border)">Não encontrados</th>
         </tr></thead>
-        <tbody>${data.products.map(p => `<tr>
-          <td style="padding:.35rem .75rem;border-bottom:1px solid var(--border);font-weight:600">${p.id}</td>
-          <td style="padding:.35rem .75rem;border-bottom:1px solid var(--border)">${p.name}</td>
-          <td style="padding:.35rem .75rem;border-bottom:1px solid var(--border);color:var(--muted)">${p.categoria || '—'}</td>
+        <tbody>${data.groups.map(g => `<tr style="${g.skip ? 'opacity:.45' : ''}">
+          <td style="padding:.35rem .75rem;border-bottom:1px solid var(--border)">
+            ${g.name}
+            ${g.skip     ? ' <em style="color:var(--muted)">(categoria → null)</em>' : ''}
+            ${g.disabled ? ' <em style="color:var(--amber)">(is_disabled = 1, categoria → null)</em>' : ''}
+          </td>
+          <td style="padding:.35rem .75rem;border-bottom:1px solid var(--border);text-align:right">${g.found}</td>
+          <td style="padding:.35rem .75rem;border-bottom:1px solid var(--border);text-align:right;color:${g.notFound > 0 ? 'var(--amber)' : 'var(--muted)'}">${g.notFound > 0 ? g.notFound : '—'}</td>
         </tr>`).join('')}</tbody>
       </table>
     </div>
-    <button class="btn-sm btn-primary" onclick='applyCatUpdate(${codesJson})'>
-      ✅ Atribuir categoria "<strong>${cat}</strong>" a ${data.found} produto(s)
-    </button>
+    <div style="display:flex;gap:.5rem">
+      <button class="btn-sm btn-primary" onclick="applyGrupos()">✅ Aplicar todos os grupos</button>
+      <button class="btn-sm" onclick="resetGrupos()">Cancelar</button>
+    </div>
   `;
-  s.textContent = `${data.found} produto(s) prontos para categorizar como "${cat}". Confirme abaixo.`;
 }
 
-async function applyCatUpdate(codes) {
-  const cat = document.getElementById('cat-name').value.trim();
-  if (!cat) { alert('Digite o nome da categoria antes de confirmar.'); return; }
-  let res, data;
+async function applyGrupos() {
+  if (!_gruposData) return;
+  const s = document.getElementById('status-grupos');
+  s.textContent = 'Aplicando categorias…';
   try {
-    res  = await fetch(BASE + '/api/documents/set-category', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codes, categoria: cat }),
-    });
-    data = await res.json();
-  } catch (err) { alert('Erro: ' + err.message); return; }
-  if (!res.ok) { alert('Erro: ' + (data.error || 'Erro')); return; }
-  const preview = document.getElementById('cat-preview');
-  preview.innerHTML = `<div style="color:var(--green);font-weight:700;font-size:.8rem">✅ Categoria "${cat}" atribuída a ${data.updated} produto(s).</div>`;
-  const s = document.getElementById('status-cat');
-  s.textContent = `✅ ${data.updated} produtos atualizados.`;
-  s.className = 'pdf-status ok';
+    const data = await api('POST', '/documents/apply-groups', { groups: _gruposData.groups });
+    s.className = 'pdf-status ok';
+    s.textContent = `✅ ${data.updated} produtos atualizados em ${data.groups} grupos.`;
+    document.getElementById('grupos-preview').innerHTML =
+      `<div style="color:var(--green);font-weight:700;font-size:.8rem">✅ Categorias aplicadas! ${data.updated} produtos atualizados em ${data.groups} grupos.</div>`;
+    _gruposData = null;
+    loadStats();
+  } catch (err) {
+    s.textContent = '❌ Erro: ' + err.message;
+  }
+}
+
+function resetGrupos() {
+  _gruposData = null;
+  document.getElementById('grupos-preview').style.display = 'none';
+  document.getElementById('status-grupos').textContent = 'Nenhum arquivo selecionado.';
+  document.getElementById('file-grupos').value = '';
 }
 
 // ── Users ──────────────────────────────────────────────────────────────────

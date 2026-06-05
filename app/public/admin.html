@@ -308,22 +308,20 @@
           <div class="pdf-status" id="status-gerencial">Nenhum arquivo selecionado.</div>
         </div>
 
-        <!-- Categorização por PDF — apenas desenvolvimento, não commitar -->
+        <!-- Importar Grupos de Produto -->
         <div class="pdf-card" style="grid-column:1/-1">
-          <h3>Atribuir Categoria por PDF</h3>
-          <p style="font-size:.72rem;color:var(--muted);margin-bottom:.75rem">Sobe um relatório de produtos (ex: Capota), extrai os códigos e atribui a categoria escolhida aos produtos encontrados no banco.</p>
-          <div style="display:flex;gap:.75rem;align-items:center;margin-bottom:.75rem;flex-wrap:wrap">
-            <input type="text" id="cat-name" placeholder="Nome da categoria (ex: Capota)" style="flex:1;min-width:180px;padding:.4rem .65rem;border:1.5px solid var(--border2);border-radius:4px;font-family:'Inter',sans-serif;font-size:.78rem">
-            <button class="btn-sm" onclick="clearCatPreview()">Limpar</button>
+          <h3>Importar Grupos de Produto</h3>
+          <p style="font-size:.72rem;color:var(--muted);margin-bottom:.3rem">Relatório: <strong>R12 — Preço + Estoque</strong> &nbsp;·&nbsp; Filtro Tipo: <strong>Grupo de Produtos</strong></p>
+          <p style="font-size:.72rem;color:var(--muted);margin-bottom:.75rem">Atribui a categoria correta a todos os produtos de uma vez — sem repetir grupo por grupo.</p>
+          <div class="upload-drop" id="drop-grupos" onclick="document.getElementById('file-grupos').click()">
+            <input type="file" accept="application/pdf" id="file-grupos" style="display:none" onchange="handleGruposFile()">
+            <strong>Arraste ou clique para selecionar</strong>
+            <p>PDF: Grupos de Produto (relatório de grupos do SV)</p>
           </div>
-          <div class="upload-drop" id="drop-cat" ondragover="onDrag(event,'cat')" ondragleave="offDrag('cat')" ondrop="onDropCat(event)" onclick="document.getElementById('file-cat').click()">
-            <input type="file" accept="application/pdf" id="file-cat" onchange="handleCatFile()" style="display:none">
-            <strong>Arraste ou clique para selecionar PDF de categoria</strong>
-            <p>Extrai os códigos do PDF e compara com o banco</p>
-          </div>
-          <div class="pdf-status" id="status-cat">Nenhum arquivo selecionado.</div>
-          <div id="cat-preview" style="display:none;margin-top:1rem"></div>
+          <div class="pdf-status" id="status-grupos">Nenhum arquivo selecionado.</div>
+          <div id="grupos-preview" style="display:none;margin-top:1rem"></div>
         </div>
+
 
       </div>
 
