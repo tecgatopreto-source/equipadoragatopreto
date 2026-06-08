@@ -47,8 +47,8 @@ app.use('/uploads', express.static(UPLOAD_DIR));
 // ── Health check (diagnóstico de conexão com o banco) ─────────────────────────
 app.get('/api/health', async (_, res) => {
   try {
-    const { getDb } = require('./db/schema');
-    const { rows } = await getDb().query('SELECT COUNT(*) FROM products');
+    const { getDb, DB_SCHEMA } = require('./db/schema');
+    const { rows } = await getDb().query(`SELECT COUNT(*) FROM "${DB_SCHEMA}".products`);
     res.json({ ok: true, products: rows[0].count });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });

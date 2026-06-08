@@ -1,5 +1,7 @@
 const { Pool } = require('pg');
 
+const DB_SCHEMA = process.env.PG_SCHEMA || 'CatalogoProdutos';
+
 let pool = null;
 
 function getDb() {
@@ -36,10 +38,10 @@ async function initDb() {
   });
 
   pool.on('connect', client => {
-    client.query('SET search_path TO "CatalogoProdutos"');
+    client.query(`SET search_path TO "${DB_SCHEMA}"`);
     client.query("SET timezone = 'America/Sao_Paulo'");
     client.query("SET statement_timeout = '20000'");
   });
 }
 
-module.exports = { getDb, initDb };
+module.exports = { getDb, initDb, DB_SCHEMA };

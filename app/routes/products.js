@@ -2,7 +2,8 @@ const router  = require('express').Router();
 const path    = require('path');
 const fs      = require('fs');
 const multer  = require('multer');
-const { getDb } = require('../db/schema');
+const { getDb, DB_SCHEMA } = require('../db/schema');
+const _s = `"${DB_SCHEMA}".`;
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const cache = require('../lib/cache');
 
@@ -46,7 +47,7 @@ async function _invalidateAll(pool) {
   cache.clear('stats');
   cache.clear('action-stats');
   try {
-    await pool.query('REFRESH MATERIALIZED VIEW "CatalogoProdutos".product_stats');
+    await pool.query(`REFRESH MATERIALIZED VIEW ${_s}product_stats`);
   } catch (e) {
     console.error('[cache] REFRESH MATERIALIZED VIEW falhou:', e.message);
   }
@@ -63,7 +64,7 @@ router.get('/categories', async (_req, res) => {
   const pool = getDb();
   try {
     const { rows } = await pool.query(
-      'SELECT DISTINCT categoria FROM products WHERE categoria IS NOT NULL ORDER BY categoria'
+      `SELECT DISTINCT categoria FROM ${_s}products WHERE categoria IS NOT NULL ORDER BY categoria`
     );
     const result = { categories: rows.map(r => r.categoria) };
     cache.set('categories', result, TTL_CATEGORIES);
@@ -153,7 +154,7 @@ router.get('/', async (req, res) => {
     const t0 = Date.now();
 
     const [countResult, dataResult] = await Promise.all([
-      pool.query(`SELECT COUNT(*) as n FROM products p ${where}`, countParams),
+      pool.query(`SELECT COUNT(*) as n FROM ${_s}products p ${where}`, countParams),
       pool.query(`
       SELECT p.id, p.name, p.price_fiscal, p.price_mgmt,
              p.stock_fiscal, p.stock_mgmt, p.snap_stock_mgmt, p.stock_real,
@@ -170,8 +171,8 @@ router.get('/', async (req, res) => {
                    ELSE ABS(COALESCE(p.stock_fiscal,0) - COALESCE(p.stock_real,0)) * 100.0
                         / GREATEST(ABS(COALESCE(p.stock_fiscal,0)), ABS(COALESCE(p.stock_real,0)))
               END) AS real_pct
-      FROM products p
-      LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_pinned = 1
+      FROM ${_s}products p
+      LEFT JOIN ${_s}product_images pi ON pi.product_id = p.id AND pi.is_pinned = 1
       ${where}
       ORDER BY ${orderBy}
       LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}
@@ -196,7 +197,7 @@ router.get('/stats', async (_req, res) => {
   try {
     const pool = getDb();
     const { rows } = await pool.query(
-      'SELECT total, iguais, divergentes, so_fiscal FROM product_stats'
+      `SELECT total, iguais, divergentes, so_fiscal FROM ${_s}product_stats`
     );
     const s = rows[0];
     const result = {
@@ -219,8 +220,8 @@ router.get('/action-stats', authenticate, async (_req, res) => {
   try {
     const pool = getDb();
     const [altRes, dstRes] = await Promise.all([
-      pool.query(`SELECT COUNT(DISTINCT product_id) as alteracoes FROM product_audit WHERE changed_at >= CURRENT_DATE AND changed_at < CURRENT_DATE + INTERVAL '1 day'`),
-      pool.query(`SELECT COUNT(*) as desativar FROM products WHERE fiscal_alert = 1`),
+      pool.query(`SELECT COUNT(DISTINCT product_id) as alteracoes FROM ${_s}product_audit WHERE changed_at >= CURRENT_DATE AND changed_at < CURRENT_DATE + INTERVAL '1 day'`),
+      pool.query(`SELECT COUNT(*) as desativar FROM ${_s}products WHERE fiscal_alert = 1`),
     ]);
     const alteracoes = parseInt(altRes.rows[0].alteracoes);
     const desativar  = parseInt(dstRes.rows[0].desativar);
@@ -266,7 +267,7 @@ router.get('/report', authenticate, async (req, res) => {
         TO_CHAR(a.changed_at AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY') AS data,
         TO_CHAR(a.changed_at AT TIME ZONE 'America/Sao_Paulo', 'HH24:MI:SS') AS hora,
         a.changed_at
-      FROM product_audit a
+      FROM ${_s}product_audit a
       ${where}
       ORDER BY ${sortCol} ${sortDir}
       LIMIT 1000
@@ -324,8 +325,8 @@ router.get('/deactivate-report', authenticate, async (req, res) => {
         CASE WHEN p.fiscal_alert = 1       THEN 1 ELSE 0 END              AS has_fiscal_alert,
         CASE WHEN a.product_id IS NOT NULL THEN 1 ELSE 0 END              AS has_audit,
         TO_CHAR(${refDate} AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY') AS data
-      FROM products p
-      LEFT JOIN product_audit a ON a.product_id = p.id
+      FROM ${_s}products p
+      LEFT JOIN ${_s}product_audit a ON a.product_id = p.id
       ${where}
       ORDER BY ${sortCol} ${sortDir}
     `, params);
@@ -341,12 +342,12 @@ router.get('/deactivate-report', authenticate, async (req, res) => {
 router.patch('/:id/resolve-alert', requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
-    const { rows } = await pool.query('SELECT id FROM products WHERE id = $1', [req.params.id]);
+    const { rows } = await pool.query(`SELECT id FROM ${_s}products WHERE id = $1`, [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Produto não encontrado' });
 
     await Promise.all([
-      pool.query(`UPDATE products SET fiscal_alert = 0, updated_at = NOW() WHERE id = $1`, [req.params.id]),
-      pool.query(`UPDATE product_audit SET fiscal_alert = 0, changed_at = NOW() WHERE product_id = $1`, [req.params.id]),
+      pool.query(`UPDATE ${_s}products SET fiscal_alert = 0, updated_at = NOW() WHERE id = $1`, [req.params.id]),
+      pool.query(`UPDATE ${_s}product_audit SET fiscal_alert = 0, changed_at = NOW() WHERE product_id = $1`, [req.params.id]),
     ]);
     await _invalidateAll(pool);
     res.json({ message: 'Alerta resolvido' });
@@ -359,11 +360,11 @@ router.patch('/:id/resolve-alert', requireAdmin, async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const pool = getDb();
-    const { rows: pRows } = await pool.query('SELECT * FROM products WHERE id = $1', [req.params.id]);
+    const { rows: pRows } = await pool.query(`SELECT * FROM ${_s}products WHERE id = $1`, [req.params.id]);
     if (!pRows[0]) return res.status(404).json({ error: 'Produto não encontrado' });
 
     const { rows: images } = await pool.query(
-      'SELECT * FROM product_images WHERE product_id = $1 ORDER BY is_pinned DESC, id ASC',
+      `SELECT * FROM ${_s}product_images WHERE product_id = $1 ORDER BY is_pinned DESC, id ASC`,
       [req.params.id]
     );
     res.json({ ...pRows[0], images });
@@ -379,12 +380,12 @@ router.post('/', requireAdmin, async (req, res) => {
     const { id, name, price_fiscal, price_mgmt, stock_fiscal, stock_mgmt, stock_real, categoria } = req.body;
     if (!id || !name) return res.status(400).json({ error: 'id e name são obrigatórios' });
 
-    const { rows: existing } = await pool.query('SELECT id FROM products WHERE id = $1', [id]);
+    const { rows: existing } = await pool.query(`SELECT id FROM ${_s}products WHERE id = $1`, [id]);
     if (existing[0]) return res.status(409).json({ error: 'Produto com este ID já existe' });
 
     const autoStatus = calcStatus(stock_fiscal ?? null, stock_mgmt ?? null);
     await pool.query(
-      `INSERT INTO products (id, name, price_fiscal, price_mgmt, stock_fiscal, stock_mgmt, stock_real, status, categoria)
+      `INSERT INTO ${_s}products (id, name, price_fiscal, price_mgmt, stock_fiscal, stock_mgmt, stock_real, status, categoria)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [id, name, price_fiscal ?? null, price_mgmt ?? null,
        stock_fiscal ?? null, stock_mgmt ?? null, stock_real ?? null, autoStatus, categoria || null]
@@ -413,7 +414,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
     const { name, price_mgmt, stock_mgmt, stock_real, categoria } = req.body;
 
     const { rows: bRows } = await pool.query(
-      'SELECT name, price_fiscal, price_mgmt, stock_fiscal, stock_mgmt, snap_stock_mgmt, stock_real, status, fiscal_alert FROM products WHERE id = $1',
+      `SELECT name, price_fiscal, price_mgmt, stock_fiscal, stock_mgmt, snap_stock_mgmt, stock_real, status, fiscal_alert FROM ${_s}products WHERE id = $1`,
       [req.params.id]
     );
     if (!bRows[0]) return res.status(404).json({ error: 'Produto não encontrado' });
@@ -433,7 +434,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
 
     const catVal = categoria !== undefined ? (categoria || null) : undefined;
     await pool.query(
-      `UPDATE products SET name=$1, price_mgmt=$2, stock_fiscal=$3, stock_mgmt=$4,
+      `UPDATE ${_s}products SET name=$1, price_mgmt=$2, stock_fiscal=$3, stock_mgmt=$4,
        stock_real=$5, fiscal_alert=$6, status=$7,
        categoria=COALESCE($9, categoria), updated_at=NOW() WHERE id=$8`,
       [newName, newPriceMgmt, newStockFiscal, newStockMgmt,
@@ -450,7 +451,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
 
     if (changed) {
       await pool.query(
-        `INSERT INTO product_audit (product_id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, changed_at)
+        `INSERT INTO ${_s}product_audit (product_id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, changed_at)
          VALUES ($1, $2, $3, $4, $5, $6, NOW())
          ON CONFLICT(product_id) DO UPDATE SET
            name         = EXCLUDED.name,
@@ -483,7 +484,7 @@ router.patch('/:id/stock-real', authenticate, async (req, res) => {
     if (isNaN(realVal)) return res.status(400).json({ error: 'Valor inválido' });
 
     const { rows: bRows } = await pool.query(
-      'SELECT stock_fiscal, stock_mgmt, snap_stock_mgmt, stock_real, fiscal_alert FROM products WHERE id = $1',
+      `SELECT stock_fiscal, stock_mgmt, snap_stock_mgmt, stock_real, fiscal_alert FROM ${_s}products WHERE id = $1`,
       [req.params.id]
     );
     if (!bRows[0]) return res.status(404).json({ error: 'Produto não encontrado' });
@@ -497,15 +498,15 @@ router.patch('/:id/stock-real', authenticate, async (req, res) => {
     const newStatus      = calcStatus(before.stock_fiscal, before.snap_stock_mgmt);
 
     await pool.query(
-      `UPDATE products SET stock_real=$1, stock_mgmt=$2, fiscal_alert=$3, updated_at=NOW() WHERE id=$4`,
+      `UPDATE ${_s}products SET stock_real=$1, stock_mgmt=$2, fiscal_alert=$3, updated_at=NOW() WHERE id=$4`,
       [realVal, newStockMgmt, newFiscalAlert, req.params.id]
     );
 
     const changed = realVal != before.stock_real || newStockMgmt != before.stock_mgmt || newFiscalAlert !== before.fiscal_alert;
     if (changed) {
       await pool.query(
-        `INSERT INTO product_audit (product_id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, changed_at)
-         SELECT id, name, stock_fiscal, $1, $2, $3, NOW() FROM products WHERE id = $4
+        `INSERT INTO ${_s}product_audit (product_id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, changed_at)
+         SELECT id, name, stock_fiscal, $1, $2, $3, NOW() FROM ${_s}products WHERE id = $4
          ON CONFLICT(product_id) DO UPDATE SET
            stock_mgmt   = EXCLUDED.stock_mgmt,
            stock_real   = EXCLUDED.stock_real,
@@ -526,7 +527,7 @@ router.patch('/:id/stock-real', authenticate, async (req, res) => {
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
-    const result = await pool.query('DELETE FROM products WHERE id = $1', [req.params.id]);
+    const result = await pool.query(`DELETE FROM ${_s}products WHERE id = $1`, [req.params.id]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Produto não encontrado' });
     await _invalidateAll(pool);
     res.json({ message: 'Produto removido' });
@@ -540,23 +541,23 @@ router.post('/:id/images/upload', imgUpload.single('image'), async (req, res) =>
   if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
   try {
     const pool = getDb();
-    const { rows } = await pool.query('SELECT id FROM products WHERE id = $1', [req.params.id]);
+    const { rows } = await pool.query(`SELECT id FROM ${_s}products WHERE id = $1`, [req.params.id]);
     if (!rows[0]) {
       try { fs.unlinkSync(req.file.path); } catch {}
       return res.status(404).json({ error: 'Produto não encontrado.' });
     }
     const url = `/uploads/product-images/${req.file.filename}`;
-    await pool.query('DELETE FROM product_images WHERE product_id = $1 AND is_manual = 0', [req.params.id]);
+    await pool.query(`DELETE FROM ${_s}product_images WHERE product_id = $1 AND is_manual = 0`, [req.params.id]);
 
-    const { rows: countRows } = await pool.query('SELECT COUNT(*) FROM product_images WHERE product_id=$1', [req.params.id]);
+    const { rows: countRows } = await pool.query(`SELECT COUNT(*) FROM ${_s}product_images WHERE product_id=$1`, [req.params.id]);
     if (parseInt(countRows[0].count) >= 4) {
       try { fs.unlinkSync(req.file.path); } catch {}
       return res.status(400).json({ error: 'Limite de 4 imagens por produto atingido' });
     }
 
-    await pool.query('UPDATE product_images SET is_pinned = 0 WHERE product_id = $1', [req.params.id]);
+    await pool.query(`UPDATE ${_s}product_images SET is_pinned = 0 WHERE product_id = $1`, [req.params.id]);
     const { rows: ins } = await pool.query(
-      'INSERT INTO product_images (product_id, url, is_pinned, is_manual) VALUES ($1, $2, 1, 1) RETURNING id',
+      `INSERT INTO ${_s}product_images (product_id, url, is_pinned, is_manual) VALUES ($1, $2, 1, 1) RETURNING id`,
       [req.params.id, url]
     );
     _invalidateImages();
@@ -573,20 +574,20 @@ router.post('/:id/images', async (req, res) => {
     const { url, is_pinned = 0, is_manual = 0 } = req.body;
     if (!url) return res.status(400).json({ error: 'URL é obrigatória' });
 
-    const { rows } = await pool.query('SELECT id FROM products WHERE id = $1', [req.params.id]);
+    const { rows } = await pool.query(`SELECT id FROM ${_s}products WHERE id = $1`, [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Produto não encontrado' });
 
-    const { rows: countRows } = await pool.query('SELECT COUNT(*) FROM product_images WHERE product_id=$1', [req.params.id]);
+    const { rows: countRows } = await pool.query(`SELECT COUNT(*) FROM ${_s}product_images WHERE product_id=$1`, [req.params.id]);
     if (parseInt(countRows[0].count) >= 4) {
       return res.status(400).json({ error: 'Limite de 4 imagens por produto atingido' });
     }
 
     if (is_pinned) {
-      await pool.query('UPDATE product_images SET is_pinned=0 WHERE product_id=$1', [req.params.id]);
+      await pool.query(`UPDATE ${_s}product_images SET is_pinned=0 WHERE product_id=$1`, [req.params.id]);
     }
 
     const { rows: ins } = await pool.query(
-      'INSERT INTO product_images (product_id, url, is_pinned, is_manual) VALUES ($1, $2, $3, $4) RETURNING id',
+      `INSERT INTO ${_s}product_images (product_id, url, is_pinned, is_manual) VALUES ($1, $2, $3, $4) RETURNING id`,
       [req.params.id, url, is_pinned ? 1 : 0, is_manual ? 1 : 0]
     );
     _invalidateImages();
@@ -600,9 +601,9 @@ router.post('/:id/images', async (req, res) => {
 router.put('/:id/images/:imgId/pin', async (req, res) => {
   try {
     const pool = getDb();
-    await pool.query('UPDATE product_images SET is_pinned=0 WHERE product_id=$1', [req.params.id]);
+    await pool.query(`UPDATE ${_s}product_images SET is_pinned=0 WHERE product_id=$1`, [req.params.id]);
     const result = await pool.query(
-      'UPDATE product_images SET is_pinned=1 WHERE id=$1 AND product_id=$2',
+      `UPDATE ${_s}product_images SET is_pinned=1 WHERE id=$1 AND product_id=$2`,
       [req.params.imgId, req.params.id]
     );
     if (result.rowCount === 0) return res.status(404).json({ error: 'Imagem não encontrada' });
@@ -618,18 +619,18 @@ router.delete('/:id/images/:imgId', async (req, res) => {
   try {
     const pool = getDb();
     const { rows: before } = await pool.query(
-      'SELECT is_pinned FROM product_images WHERE id=$1 AND product_id=$2',
+      `SELECT is_pinned FROM ${_s}product_images WHERE id=$1 AND product_id=$2`,
       [req.params.imgId, req.params.id]
     );
     if (!before[0]) return res.status(404).json({ error: 'Imagem não encontrada' });
     const wasPinned = before[0].is_pinned;
 
-    await pool.query('DELETE FROM product_images WHERE id=$1 AND product_id=$2', [req.params.imgId, req.params.id]);
+    await pool.query(`DELETE FROM ${_s}product_images WHERE id=$1 AND product_id=$2`, [req.params.imgId, req.params.id]);
 
     if (wasPinned) {
       await pool.query(
-        `UPDATE product_images SET is_pinned=1
-         WHERE id = (SELECT id FROM product_images WHERE product_id=$1 ORDER BY id ASC LIMIT 1)`,
+        `UPDATE ${_s}product_images SET is_pinned=1
+         WHERE id = (SELECT id FROM ${_s}product_images WHERE product_id=$1 ORDER BY id ASC LIMIT 1)`,
         [req.params.id]
       );
     }
@@ -645,7 +646,7 @@ router.delete('/:id/images/:imgId', async (req, res) => {
 router.delete('/:id/images', async (req, res) => {
   try {
     const pool = getDb();
-    await pool.query('DELETE FROM product_images WHERE product_id=$1', [req.params.id]);
+    await pool.query(`DELETE FROM ${_s}product_images WHERE product_id=$1`, [req.params.id]);
     _invalidateImages();
     res.json({ message: 'Imagens removidas — próxima abertura buscará novamente' });
   } catch (err) {
@@ -666,7 +667,7 @@ router.get('/:id/search-images', async (req, res) => {
   if (fresh) {
     try {
       const pool = getDb();
-      const prod = await pool.query('SELECT id, name FROM products WHERE id=$1', [id]);
+      const prod = await pool.query(`SELECT id, name FROM ${_s}products WHERE id=$1`, [id]);
       if (!prod.rows.length) return res.status(404).json({ error: 'Produto não encontrado' });
 
       const { searchImages, buildQuery } = require('../lib/image-search');
@@ -681,7 +682,7 @@ router.get('/:id/search-images', async (req, res) => {
   try {
     const pool = getDb();
     const cached = await pool.query(
-      'SELECT * FROM product_images WHERE product_id=$1 ORDER BY is_pinned DESC, id ASC',
+      `SELECT * FROM ${_s}product_images WHERE product_id=$1 ORDER BY is_pinned DESC, id ASC`,
       [id]
     );
     if (cached.rows.length) return res.json({ images: cached.rows, source: 'cache' });
@@ -689,7 +690,7 @@ router.get('/:id/search-images', async (req, res) => {
     if (_searching.has(id)) return res.json({ images: [], source: 'pending' });
     _searching.add(id);
 
-    const prod = await pool.query('SELECT id, name FROM products WHERE id=$1', [id]);
+    const prod = await pool.query(`SELECT id, name FROM ${_s}products WHERE id=$1`, [id]);
     if (!prod.rows.length) {
       _searching.delete(id);
       return res.status(404).json({ error: 'Produto não encontrado' });

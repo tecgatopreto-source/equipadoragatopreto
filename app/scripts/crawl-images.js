@@ -19,7 +19,8 @@ if (fs.existsSync(envFile)) {
   });
 }
 
-const { getDb, initDb } = require('../db/schema');
+const { getDb, initDb, DB_SCHEMA } = require('../db/schema');
+const _s = `"${DB_SCHEMA}".`;
 const { searchAndSaveImages } = require('../lib/image-search');
 
 function arg(name, fallback) {
@@ -47,10 +48,10 @@ async function main() {
   const eanClause = EAN_ONLY ? 'AND p.ean IS NOT NULL' : '';
   const { rows: products } = await pool.query(
     `SELECT p.id, p.name, p.ean
-     FROM "CatalogoProdutos".products p
+     FROM ${_s}products p
      WHERE p.is_disabled = 0
        AND NOT EXISTS (
-         SELECT 1 FROM "CatalogoProdutos".product_images pi WHERE pi.product_id = p.id
+         SELECT 1 FROM ${_s}product_images pi WHERE pi.product_id = p.id
        )
        ${eanClause}
      ORDER BY p.id

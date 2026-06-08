@@ -3,7 +3,8 @@ const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const path = require('path');
 const fs = require('fs');
-const { getDb } = require('../db/schema');
+const { getDb, DB_SCHEMA } = require('../db/schema');
+const _s = `"${DB_SCHEMA}".`;
 const { requireAdmin } = require('../middleware/auth');
 const { classifyProduct } = require('../lib/categories');
 const cache = require('../lib/cache');
@@ -59,7 +60,7 @@ router.post('/upload/grupos', requireAdmin, async (req, res) => {
   const pool = getDb();
   let productSet;
   try {
-    const { rows } = await pool.query('SELECT id FROM products');
+    const { rows } = await pool.query(`SELECT id FROM ${_s}products`);
     productSet = new Set(rows.map(r => r.id));
   } catch (err) {
     return res.status(500).json({ error: 'Erro ao carregar produtos: ' + err.message });
@@ -93,7 +94,7 @@ router.post('/upload/:type', requireAdmin, async (req, res) => {
   let documentId;
   try {
     const { rows } = await pool.query(
-      `INSERT INTO uploaded_documents (filename, type, size_bytes, uploaded_by)
+      `INSERT INTO ${_s}uploaded_documents (filename, type, size_bytes, uploaded_by)
        VALUES ($1, $2, $3, $4) RETURNING id`,
       [req.file.filename, type, req.file.size, req.user.username]
     );
@@ -116,7 +117,7 @@ router.post('/upload/:type', requireAdmin, async (req, res) => {
   // 4. Carrega produtos e extrai dados do PDF
   let productMap, extracted;
   try {
-    const { rows } = await pool.query('SELECT id, name FROM products');
+    const { rows } = await pool.query(`SELECT id, name FROM ${_s}products`);
     productMap = new Map(rows.map(p => [p.id, p]));
     extracted  = parsePdf(rawText, productMap, type);
   } catch (err) {
@@ -149,7 +150,7 @@ router.post('/upload/:type', requireAdmin, async (req, res) => {
             UNNEST($7::int[])              AS is_disabled,
             UNNEST($8::text[])             AS categoria
         )
-        INSERT INTO products (id, name, price_fiscal, stock_fiscal, snap_fiscal_at,
+        INSERT INTO ${_s}products (id, name, price_fiscal, stock_fiscal, snap_fiscal_at,
           snap_price_mgmt, snap_stock_mgmt, snap_mgmt_at, is_disabled, status, categoria)
         SELECT
           id, name, price_fiscal, stock_fiscal,
@@ -185,7 +186,7 @@ router.post('/upload/:type', requireAdmin, async (req, res) => {
   // 6. Recalcula status, invalida cache e grava histórico
   try {
     await pool.query(`
-      UPDATE products SET status = CASE
+      UPDATE ${_s}products SET status = CASE
         WHEN stock_fiscal IS NOT NULL AND snap_stock_mgmt IS NULL THEN 2
         WHEN stock_fiscal IS NULL     AND snap_stock_mgmt IS NULL THEN 0
         WHEN stock_fiscal = snap_stock_mgmt THEN 0
@@ -196,12 +197,12 @@ router.post('/upload/:type', requireAdmin, async (req, res) => {
     cache.clear('action-stats');
     cache.clear('products:');
     try {
-      await pool.query('REFRESH MATERIALIZED VIEW "CatalogoProdutos".product_stats');
+      await pool.query(`REFRESH MATERIALIZED VIEW ${_s}product_stats`);
     } catch (e) {
       console.error('[import] REFRESH MATERIALIZED VIEW falhou:', e.message);
     }
     await pool.query(
-      `INSERT INTO import_history (document_id, type, total_products, updated_products, skipped, status)
+      `INSERT INTO ${_s}import_history (document_id, type, total_products, updated_products, skipped, status)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [documentId, type, extracted.length, updated, 0, 'success']
     );
@@ -218,8 +219,8 @@ router.get('/history', requireAdmin, async (req, res) => {
     const pool = getDb();
     const { rows } = await pool.query(`
       SELECT ih.*, ud.filename, ud.uploaded_by, ud.uploaded_at
-      FROM import_history ih
-      LEFT JOIN uploaded_documents ud ON ud.id = ih.document_id
+      FROM ${_s}import_history ih
+      LEFT JOIN ${_s}uploaded_documents ud ON ud.id = ih.document_id
       ORDER BY ih.imported_at DESC
       LIMIT 100
     `);
@@ -233,7 +234,7 @@ router.get('/history', requireAdmin, async (req, res) => {
 router.get('/rawtext/:id', requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
-    const { rows } = await pool.query('SELECT * FROM uploaded_documents WHERE id = $1', [req.params.id]);
+    const { rows } = await pool.query(`SELECT * FROM ${_s}uploaded_documents WHERE id = $1`, [req.params.id]);
     const doc = rows[0];
     if (!doc) return res.status(404).json({ error: 'Documento não encontrado.' });
 
@@ -279,7 +280,7 @@ router.post('/apply-groups', requireAdmin, async (req, res) => {
       // NIVEL MESTRE: apenas limpa categoria, não mexe em is_disabled
       try {
         const { rowCount } = await pool.query(
-          'UPDATE products SET categoria = NULL, updated_at = NOW() WHERE id = ANY($1::text[])',
+          `UPDATE ${_s}products SET categoria = NULL, updated_at = NOW() WHERE id = ANY($1::text[])`,
           [g.productIds]
         );
         updated += rowCount;
@@ -295,13 +296,13 @@ router.post('/apply-groups', requireAdmin, async (req, res) => {
       if (g.disabled) {
         // Grupo "01 DESATIVADO": marca is_disabled = 1, categoria = NULL
         ({ rowCount } = await pool.query(
-          'UPDATE products SET is_disabled = 1, categoria = NULL, updated_at = NOW() WHERE id = ANY($1::text[])',
+          `UPDATE ${_s}products SET is_disabled = 1, categoria = NULL, updated_at = NOW() WHERE id = ANY($1::text[])`,
           [g.productIds]
         ));
       } else {
         // Grupo normal: atribui categoria e garante is_disabled = 0
         ({ rowCount } = await pool.query(
-          'UPDATE products SET categoria = $1, is_disabled = 0, updated_at = NOW() WHERE id = ANY($2::text[])',
+          `UPDATE ${_s}products SET categoria = $1, is_disabled = 0, updated_at = NOW() WHERE id = ANY($2::text[])`,
           [g.name, g.productIds]
         ));
       }
@@ -316,7 +317,7 @@ router.post('/apply-groups', requireAdmin, async (req, res) => {
   cache.clear('stats');
   cache.clear('action-stats');
   try {
-    await pool.query('REFRESH MATERIALIZED VIEW "CatalogoProdutos".product_stats');
+    await pool.query(`REFRESH MATERIALIZED VIEW ${_s}product_stats`);
   } catch (e) {
     console.error('[apply-groups] REFRESH VIEW falhou:', e.message);
   }
@@ -328,7 +329,7 @@ router.post('/apply-groups', requireAdmin, async (req, res) => {
 router.get('/', requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
-    const { rows } = await pool.query('SELECT * FROM uploaded_documents ORDER BY uploaded_at DESC LIMIT 50');
+    const { rows } = await pool.query(`SELECT * FROM ${_s}uploaded_documents ORDER BY uploaded_at DESC LIMIT 50`);
     res.json({ documents: rows });
   } catch (err) {
     res.status(500).json({ error: err.message });

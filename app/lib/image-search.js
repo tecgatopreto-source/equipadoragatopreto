@@ -1,6 +1,7 @@
 const https = require('https');
 const zlib  = require('zlib');
-const { getDb } = require('../db/schema');
+const { getDb, DB_SCHEMA } = require('../db/schema');
+const _s = `"${DB_SCHEMA}".`;
 
 // ── HTTP helper ──────────────────────────────────────────────────────────────
 function httpGet(url, extraHeaders = {}, redirects = 0) {
@@ -116,23 +117,23 @@ async function searchAndSaveImages(product) {
   if (!urls.length) return [];
 
   const pool = getDb();
-  await pool.query('DELETE FROM product_images WHERE product_id=$1 AND is_manual=0', [product.id]);
+  await pool.query(`DELETE FROM ${_s}product_images WHERE product_id=$1 AND is_manual=0`, [product.id]);
 
   const { rows: remaining } = await pool.query(
-    'SELECT COUNT(*) FROM product_images WHERE product_id=$1', [product.id]
+    `SELECT COUNT(*) FROM ${_s}product_images WHERE product_id=$1`, [product.id]
   );
   const slots = 4 - parseInt(remaining[0].count);
   if (slots <= 0) return [];
 
   const limited = urls.slice(0, slots);
-  await pool.query('UPDATE product_images SET is_pinned=0 WHERE product_id=$1', [product.id]);
+  await pool.query(`UPDATE ${_s}product_images SET is_pinned=0 WHERE product_id=$1`, [product.id]);
 
   // Batch INSERT — uma query para todas as imagens
   const placeholders = limited.map((_, i) => `($1, $${i * 2 + 2}, $${i * 2 + 3}, 0)`).join(', ');
   const params = [product.id, ...limited.flatMap((url, i) => [url, i === 0 ? 1 : 0])];
   try {
     const r = await pool.query(
-      `INSERT INTO product_images (product_id, url, is_pinned, is_manual)
+      `INSERT INTO ${_s}product_images (product_id, url, is_pinned, is_manual)
        VALUES ${placeholders} ON CONFLICT DO NOTHING
        RETURNING id, product_id, url, is_pinned, is_manual, created_at`,
       params
