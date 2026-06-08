@@ -333,6 +333,7 @@ function buildThumbs() {
 
 async function deleteThumbImg(imgId) {
   if (!modalProductId) return;
+  if (!confirm('Remover esta foto do produto?')) return;
   try {
     await apiFetch(`/api/products/${modalProductId}/images/${imgId}`, { method: 'DELETE' });
     const idx = modalImages.findIndex(i => i.id === imgId);
