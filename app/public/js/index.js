@@ -1,6 +1,6 @@
 // ── Auth ───────────────────────────────────────────────────────────────────
 const BASE = window.APP_BASE || '';
-const user  = JSON.parse(localStorage.getItem('gp_user') || 'null');
+let user  = JSON.parse(localStorage.getItem('gp_user') || 'null');
 
 function renderAuthActions() {
   const el = document.getElementById('auth-actions');
@@ -19,6 +19,18 @@ async function logout() {
   try { await fetch(BASE + '/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
   localStorage.removeItem('gp_user');
   location.reload();
+}
+
+async function verifySession() {
+  if (!user) return;
+  try {
+    const r = await fetch(BASE + '/api/auth/me', { credentials: 'same-origin' });
+    if (r.status === 401 || r.status === 403) {
+      localStorage.removeItem('gp_user');
+      user = null;
+      renderAuthActions();
+    }
+  } catch (_) {}
 }
 
 // ── State ──────────────────────────────────────────────────────────────────
@@ -76,9 +88,10 @@ async function apiFetch(path, opts = {}) {
 // ── Stats ──────────────────────────────────────────────────────────────────
 async function fetchStats() {
   const s = await apiFetch('/api/products/stats');
-  document.getElementById('st').textContent = s.total.toLocaleString('pt-BR');
-  document.getElementById('si').textContent = s.iguais.toLocaleString('pt-BR');
-  document.getElementById('sd').textContent = s.divergentes.toLocaleString('pt-BR');
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set('st', s.total.toLocaleString('pt-BR'));
+  set('si', s.iguais.toLocaleString('pt-BR'));
+  set('sd', s.divergentes.toLocaleString('pt-BR'));
 }
 
 // ── Products list ──────────────────────────────────────────────────────────
@@ -864,6 +877,7 @@ if (currentCodeQ) {
 document.querySelectorAll('#cat-disabled-group .fb').forEach(b =>
   b.classList.toggle('active', b.dataset.disabled === currentDisabled));
 renderAuthActions();
+verifySession();
 fetchStats();
 fetchProducts(1, true);
 
