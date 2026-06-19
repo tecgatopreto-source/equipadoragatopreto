@@ -78,8 +78,8 @@ router.get('/categories', async (_req, res) => {
 // ── GET /api/products ──────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   const { q = '', name_q = '', code_q = '', status = 'T', page = 1, limit = 60, sort = 'id', order = 'asc' } = req.query;
-  const { fiscal_alert: _cfa, disabled: _cdis, cat: _ccat } = req.query;
-  const cacheKey = `products:${q}|${name_q}|${code_q}|${status}|${page}|${limit}|${sort}|${order}|${_cfa ?? ''}|${_cdis ?? ''}|${_ccat ?? ''}`;
+  const { fiscal_alert: _cfa, disabled: _cdis, cat: _ccat, capota_type: _cct } = req.query;
+  const cacheKey = `products:${q}|${name_q}|${code_q}|${status}|${page}|${limit}|${sort}|${order}|${_cfa ?? ''}|${_cdis ?? ''}|${_ccat ?? ''}|${_cct ?? ''}`;
   const cached = cache.get(cacheKey);
   if (cached) return res.json(cached);
   const pool = getDb();
@@ -126,7 +126,7 @@ router.get('/', async (req, res) => {
     conditions.push(`p.status = $${params.length}`);
   }
 
-  const { fiscal_alert, disabled, cat } = req.query;
+  const { fiscal_alert, disabled, cat, capota_type } = req.query;
   if (fiscal_alert === '1') conditions.push('p.fiscal_alert = 1');
   if (disabled === '0')      conditions.push('COALESCE(p.is_disabled, 0) = 0');
   else if (disabled === '1') conditions.push('COALESCE(p.is_disabled, 0) = 1');
@@ -135,6 +135,9 @@ router.get('/', async (req, res) => {
     params.push(cat.trim());
     conditions.push(`p.categoria = $${params.length}`);
   }
+
+  if (capota_type === 'FF') conditions.push(`p.name ~ 'L?FF ?[0-9]+'`);
+  else if (capota_type === 'P') conditions.push(`p.name ~ '[. ]P[0-9]+'`);
 
   const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
 

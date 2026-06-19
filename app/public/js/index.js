@@ -42,6 +42,7 @@ let currentDisabled  = localStorage.getItem('gp_catalog_disabled') || '';
 let currentNameQ     = localStorage.getItem('gp_catalog_name_q')   || '';
 let currentCodeQ     = localStorage.getItem('gp_catalog_code_q')   || '';
 let currentCatLabel  = localStorage.getItem('gp_catalog_cat') || '';
+let currentCapotaType = '';
 
 // Modal image state
 let modalProductId       = null;
@@ -126,6 +127,7 @@ async function fetchProducts(page = 1, reset = false) {
       if (currentCodeQ) params.set('code_q', currentCodeQ);
       if (currentDisabled !== '') params.append('disabled', currentDisabled);
       if (currentCatLabel) params.append('cat', currentCatLabel);
+      if (currentCapotaType) params.append('capota_type', currentCapotaType);
       const data = await apiFetch('/api/products?' + params, { signal: controller.signal });
 
       if (!data || !Array.isArray(data.products)) throw new Error('Resposta inválida da API');
@@ -780,6 +782,16 @@ document.querySelectorAll('#cat-disabled-group .fb').forEach(b => {
   });
 });
 
+// ── Capota sub-filter ──────────────────────────────────────────────────────
+document.querySelectorAll('#capota-subfilter .fb').forEach(b => {
+  b.addEventListener('click', () => {
+    currentCapotaType = b.dataset.capota;
+    document.querySelectorAll('#capota-subfilter .fb').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    fetchProducts(1, true);
+  });
+});
+
 // ── Load more ──────────────────────────────────────────────────────────────
 document.getElementById('lm').addEventListener('click', () => fetchProducts(currentPage + 1, false));
 
@@ -806,6 +818,17 @@ function _applyCatFilter(val) {
   if (val) localStorage.setItem('gp_catalog_cat', val);
   else localStorage.removeItem('gp_catalog_cat');
   document.getElementById('cat-dropdown').hidden = true;
+
+  const isCapota = val.toUpperCase() === 'CAPOTA';
+  const subfilter = document.getElementById('capota-subfilter');
+  if (subfilter) {
+    subfilter.style.display = isCapota ? 'flex' : 'none';
+    if (!isCapota) {
+      currentCapotaType = '';
+      subfilter.querySelectorAll('.fb').forEach(b => b.classList.toggle('active', b.dataset.capota === ''));
+    }
+  }
+
   fetchProducts(1, true);
 }
 
