@@ -1099,7 +1099,10 @@ async function processGruposPdf(file) {
 
   _gruposData = data;
   document.getElementById('file-grupos').value = '';
-  s.textContent = `${data.totalGroups} grupos encontrados, ${data.totalFound.toLocaleString('pt-BR')} produtos serão atualizados.`;
+  const parsedInfo = data.totalParsed && data.totalParsed !== data.totalFound
+    ? ` (${data.totalParsed.toLocaleString('pt-BR')} lidos no PDF)`
+    : '';
+  s.textContent = `${data.totalGroups} grupos encontrados, ${data.totalFound.toLocaleString('pt-BR')} produtos serão atualizados.${parsedInfo}`;
 
   const preview = document.getElementById('grupos-preview');
   preview.style.display = 'block';

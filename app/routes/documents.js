@@ -66,12 +66,15 @@ router.post('/upload/grupos', requireAdmin, async (req, res) => {
     return res.status(500).json({ error: 'Erro ao carregar produtos: ' + err.message });
   }
 
-  const groups   = parseGrupos(rawText, productSet);
-  const nonSkip  = groups.filter(g => !g.skip);
+  const groups        = parseGrupos(rawText, productSet);
+  const nonSkip       = groups.filter(g => !g.skip);
+  const totalFound    = groups.reduce((s, g) => s + g.found,    0);
+  const totalNotFound = groups.reduce((s, g) => s + g.notFound, 0);
   res.json({
     totalGroups:   nonSkip.length,
-    totalFound:    nonSkip.reduce((s, g) => s + g.found,    0),
-    totalNotFound: groups.reduce((s, g) => s + g.notFound,  0),
+    totalFound,
+    totalNotFound,
+    totalParsed:   totalFound + totalNotFound,
     groups,
   });
 });
@@ -279,11 +282,10 @@ router.post('/apply-groups', requireAdmin, async (req, res) => {
     if (g.skip) {
       // NIVEL MESTRE: apenas limpa categoria, não mexe em is_disabled
       try {
-        const { rowCount } = await pool.query(
+        await pool.query(
           `UPDATE ${_s}products SET categoria = NULL, updated_at = NOW() WHERE id = ANY($1::text[])`,
           [g.productIds]
         );
-        updated += rowCount;
       } catch (err) {
         console.error('[apply-groups] NIVEL MESTRE erro:', err.message);
       }
@@ -390,16 +392,17 @@ function parseGrupos(rawText, productSet) {
     }
 
     if (wantHeader) {
-      wantHeader = false;
       const m = /^(.*) - (\d+)$/.exec(line);
       if (m) {
+        wantHeader = false;
         if (current) groups.push(current);
         const code = parseInt(m[2]);
         // Remove decoradores "----" do NIVEL MESTRE
         const name = m[1].replace(/^[-\s]+/, '').replace(/[-\s]+$/, '').replace(/\s{2,}/g, ' ').trim();
         current = { name, code, skip: code === 0, disabled: code === 50, productIds: [], found: 0, notFound: 0 };
       }
-      continue; // seja cabeçalho ou não, não tratar como código de produto
+      // Se não casou com o padrão de cabeçalho, mantém wantHeader=true e continua tentando
+      continue;
     }
 
     // Dentro de um grupo: código de produto é um inteiro puro (vem após nome/emb/estoque/preço/total)
