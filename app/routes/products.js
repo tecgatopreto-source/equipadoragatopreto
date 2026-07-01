@@ -268,6 +268,10 @@ router.get('/report', authenticate, async (req, res) => {
         a.stock_mgmt,
         a.stock_real,
         a.categoria,
+        a.prev_stock_fiscal,
+        a.prev_stock_mgmt,
+        a.prev_stock_real,
+        a.prev_categoria,
         TO_CHAR(a.changed_at AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY') AS data,
         TO_CHAR(a.changed_at AT TIME ZONE 'America/Sao_Paulo', 'HH24:MI:SS') AS hora,
         a.changed_at
@@ -418,7 +422,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
     const { name, price_mgmt, stock_mgmt, stock_real, categoria } = req.body;
 
     const { rows: bRows } = await pool.query(
-      `SELECT name, price_fiscal, price_mgmt, stock_fiscal, stock_mgmt, snap_stock_mgmt, stock_real, status, fiscal_alert FROM ${_s}products WHERE id = $1`,
+      `SELECT name, price_fiscal, price_mgmt, stock_fiscal, stock_mgmt, snap_stock_mgmt, stock_real, status, fiscal_alert, categoria FROM ${_s}products WHERE id = $1`,
       [req.params.id]
     );
     if (!bRows[0]) return res.status(404).json({ error: 'Produto não encontrado' });
@@ -455,18 +459,25 @@ router.put('/:id', requireAdmin, async (req, res) => {
 
     if (changed) {
       await pool.query(
-        `INSERT INTO ${_s}product_audit (product_id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, categoria, changed_at)
-         SELECT id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, categoria, NOW()
+        `INSERT INTO ${_s}product_audit
+           (product_id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, categoria,
+            prev_stock_fiscal, prev_stock_mgmt, prev_stock_real, prev_categoria, changed_at)
+         SELECT id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, categoria,
+                $2, $3, $4, $5, NOW()
          FROM ${_s}products WHERE id = $1
          ON CONFLICT(product_id) DO UPDATE SET
-           name         = EXCLUDED.name,
-           stock_fiscal = EXCLUDED.stock_fiscal,
-           stock_mgmt   = EXCLUDED.stock_mgmt,
-           stock_real   = EXCLUDED.stock_real,
-           fiscal_alert = EXCLUDED.fiscal_alert,
-           categoria    = EXCLUDED.categoria,
-           changed_at   = EXCLUDED.changed_at`,
-        [req.params.id]
+           name              = EXCLUDED.name,
+           stock_fiscal      = EXCLUDED.stock_fiscal,
+           stock_mgmt        = EXCLUDED.stock_mgmt,
+           stock_real        = EXCLUDED.stock_real,
+           fiscal_alert      = EXCLUDED.fiscal_alert,
+           categoria         = EXCLUDED.categoria,
+           prev_stock_fiscal = EXCLUDED.prev_stock_fiscal,
+           prev_stock_mgmt   = EXCLUDED.prev_stock_mgmt,
+           prev_stock_real   = EXCLUDED.prev_stock_real,
+           prev_categoria    = EXCLUDED.prev_categoria,
+           changed_at        = EXCLUDED.changed_at`,
+        [req.params.id, before.stock_fiscal, before.stock_mgmt, before.stock_real, before.categoria]
       );
     }
 
@@ -511,15 +522,20 @@ router.patch('/:id/stock-real', authenticate, async (req, res) => {
     const changed = realVal != before.stock_real || newStockMgmt != before.stock_mgmt || newFiscalAlert !== before.fiscal_alert;
     if (changed) {
       await pool.query(
-        `INSERT INTO ${_s}product_audit (product_id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, categoria, changed_at)
-         SELECT id, name, stock_fiscal, $1, $2, $3, categoria, NOW() FROM ${_s}products WHERE id = $4
+        `INSERT INTO ${_s}product_audit
+           (product_id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, categoria,
+            prev_stock_mgmt, prev_stock_real, changed_at)
+         SELECT id, name, stock_fiscal, $1, $2, $3, categoria, $5, $6, NOW()
+         FROM ${_s}products WHERE id = $4
          ON CONFLICT(product_id) DO UPDATE SET
-           stock_mgmt   = EXCLUDED.stock_mgmt,
-           stock_real   = EXCLUDED.stock_real,
-           fiscal_alert = EXCLUDED.fiscal_alert,
-           categoria    = EXCLUDED.categoria,
-           changed_at   = EXCLUDED.changed_at`,
-        [newStockMgmt, realVal, newFiscalAlert, req.params.id]
+           stock_mgmt      = EXCLUDED.stock_mgmt,
+           stock_real      = EXCLUDED.stock_real,
+           fiscal_alert    = EXCLUDED.fiscal_alert,
+           categoria       = EXCLUDED.categoria,
+           prev_stock_mgmt = EXCLUDED.prev_stock_mgmt,
+           prev_stock_real = EXCLUDED.prev_stock_real,
+           changed_at      = EXCLUDED.changed_at`,
+        [newStockMgmt, realVal, newFiscalAlert, req.params.id, before.stock_mgmt, before.stock_real]
       );
     }
 

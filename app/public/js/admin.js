@@ -841,23 +841,38 @@ async function loadReport() {
     return;
   }
 
+  const cellDiff = (changed, newVal, prevVal) => {
+    const formatted = fmtStock(newVal);
+    if (!changed) return formatted;
+    return `<span style="color:var(--muted2);text-decoration:line-through;font-size:.65rem;margin-right:.3rem">${fmtStock(prevVal)}</span><span style="color:var(--amber);font-weight:700">${formatted}</span>`;
+  };
+
   tbody.innerHTML = data.rows
-    .map(
-      (r) => `
+    .map((r) => {
+      const fiscalChanged = r.prev_stock_fiscal != null && Number(r.prev_stock_fiscal) !== Number(r.stock_fiscal);
+      const mgmtChanged   = r.prev_stock_mgmt   != null && Number(r.prev_stock_mgmt)   !== Number(r.stock_mgmt);
+      const realChanged   = r.prev_stock_real   != null && Number(r.prev_stock_real)   !== Number(r.stock_real);
+      const catChanged    = r.prev_categoria    != null && r.prev_categoria             !== r.categoria;
+      const catBadge = r.categoria
+        ? catChanged
+          ? `<span style="background:rgba(181,98,10,.12);color:var(--amber);padding:.15rem .45rem;border-radius:4px;white-space:nowrap;font-weight:700">${r.categoria}</span>`
+          : `<span style="background:#ebebeb;color:#666;padding:.15rem .45rem;border-radius:4px;white-space:nowrap">${r.categoria}</span>`
+        : '<span style="color:var(--muted2)">—</span>';
+      return `
     <tr>
       <td style="font-weight:600;font-size:.72rem">${r.id}</td>
       <td>${r.name}</td>
-      <td style="font-size:.7rem">${r.categoria ? `<span style="background:var(--badge-bg,#e8f0fe);color:var(--badge-color,#1a56db);padding:.15rem .45rem;border-radius:4px;white-space:nowrap">${r.categoria}</span>` : '<span style="color:var(--muted2)">—</span>'}</td>
-      <td>${fmtStock(r.stock_fiscal)}</td>
-      <td>${fmtStock(r.stock_mgmt)}</td>
+      <td style="font-size:.7rem">${catBadge}</td>
+      <td>${cellDiff(fiscalChanged, r.stock_fiscal, r.prev_stock_fiscal)}</td>
+      <td>${cellDiff(mgmtChanged, r.stock_mgmt, r.prev_stock_mgmt)}</td>
       <td style="border-left:2px solid var(--accent);font-weight:700">
-        ${r.stock_real != null ? Number(r.stock_real).toLocaleString("pt-BR") : '<span style="color:var(--muted2)">—</span>'}
+        ${cellDiff(realChanged, r.stock_real, r.prev_stock_real)}
       </td>
       <td class="date-cell">📅 ${r.data}</td>
       <td class="time-cell">🕐 ${r.hora}</td>
     </tr>
-  `,
-    )
+  `;
+    })
     .join("");
 }
 
@@ -1177,14 +1192,24 @@ function offDrag(type) {
   document.getElementById("drop-" + type).classList.remove("drag");
 }
 
+let _uploadInProgress = false;
+
+function setUploadDropsDisabled(disabled) {
+  ["fiscal", "gerencial"].forEach((t) => {
+    document.getElementById("drop-" + t).classList.toggle("disabled", disabled);
+  });
+}
+
 function onDropFile(e, type) {
   e.preventDefault();
   offDrag(type);
+  if (_uploadInProgress) return;
   const file = e.dataTransfer.files[0];
   if (file) uploadPdf(type, file);
 }
 
 function handleFileSelect(type) {
+  if (_uploadInProgress) return;
   const input = document.getElementById("file-" + type);
   if (input.files[0]) uploadPdf(type, input.files[0]);
 }
@@ -1204,7 +1229,21 @@ async function uploadPdf(type, file) {
     setStatus(type, "Apenas arquivos PDF são aceitos.", "err");
     return;
   }
+  if (_uploadInProgress) {
+    setStatus(type, "Aguarde a importação em andamento terminar…", "err");
+    return;
+  }
+  _uploadInProgress = true;
+  setUploadDropsDisabled(true);
+  try {
+    await _doUploadPdf(type, file);
+  } finally {
+    _uploadInProgress = false;
+    setUploadDropsDisabled(false);
+  }
+}
 
+async function _doUploadPdf(type, file) {
   setStatus(type, `Enviando "${file.name}"…`);
 
   // Mostra painel de progresso

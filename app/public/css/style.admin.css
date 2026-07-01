@@ -1070,6 +1070,11 @@ th.col-real {
 .upload-drop.drag {
   border-color: var(--accent);
 }
+.upload-drop.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
 .upload-drop input[type="file"] {
   position: absolute;
   inset: 0;

@@ -42,6 +42,18 @@ function runUpload(req, res) {
   });
 }
 
+// Serializa operações que leem e regravam products/product_audit (upload de PDF, aplicar grupos).
+// Sem isso, duas importações concorrentes podem intercalar suas queries e uma sobrescreve
+// a linha de auditoria da outra com dados desatualizados (mesmo a tabela products ficando correta).
+let importChain = Promise.resolve();
+function serializeImport(handler) {
+  return (req, res) => {
+    const result = importChain.then(() => handler(req, res));
+    importChain = result.catch(() => {});
+    return result;
+  };
+}
+
 // POST /api/documents/upload/grupos — preview de grupos (sem escrever no banco)
 router.post('/upload/grupos', requireAdmin, async (req, res) => {
   try { await runUpload(req, res); }
@@ -80,7 +92,7 @@ router.post('/upload/grupos', requireAdmin, async (req, res) => {
 });
 
 // POST /api/documents/upload/:type
-router.post('/upload/:type', requireAdmin, async (req, res) => {
+router.post('/upload/:type', requireAdmin, serializeImport(async (req, res) => {
   // 1. Recebe o arquivo
   try { await runUpload(req, res); }
   catch (err) { return res.status(400).json({ error: err.message }); }
@@ -196,21 +208,35 @@ router.post('/upload/:type', requireAdmin, async (req, res) => {
 
     if (changedIds.length > 0) {
       try {
+        const prevFiscal = changedIds.map(id => {
+          const p = productMap.get(id);
+          return p != null ? parseFloat(p.stock_fiscal) : null;
+        });
+        const prevMgmt = changedIds.map(id => {
+          const p = productMap.get(id);
+          return p != null ? parseFloat(p.snap_stock_mgmt) : null;
+        });
         await pool.query(`
           INSERT INTO ${_s}product_audit
-            (product_id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, categoria, changed_at)
-          SELECT
-            id, name, stock_fiscal, snap_stock_mgmt, NULL, fiscal_alert, categoria, NOW()
-          FROM ${_s}products
-          WHERE id = ANY($1::text[])
+            (product_id, name, stock_fiscal, stock_mgmt, stock_real,
+             fiscal_alert, categoria, prev_stock_fiscal, prev_stock_mgmt, changed_at)
+          SELECT p.id, p.name, p.stock_fiscal, p.snap_stock_mgmt, NULL,
+                 p.fiscal_alert, p.categoria, v.pf, v.pm, NOW()
+          FROM ${_s}products p
+          JOIN (SELECT unnest($1::text[]) AS id,
+                       unnest($2::numeric[]) AS pf,
+                       unnest($3::numeric[]) AS pm) v ON v.id = p.id
           ON CONFLICT (product_id) DO UPDATE SET
-            name         = EXCLUDED.name,
-            stock_fiscal = EXCLUDED.stock_fiscal,
-            stock_mgmt   = EXCLUDED.stock_mgmt,
-            fiscal_alert = EXCLUDED.fiscal_alert,
-            categoria    = EXCLUDED.categoria,
-            changed_at   = NOW()
-        `, [changedIds]);
+            name              = EXCLUDED.name,
+            stock_fiscal      = EXCLUDED.stock_fiscal,
+            stock_mgmt        = EXCLUDED.stock_mgmt,
+            fiscal_alert      = EXCLUDED.fiscal_alert,
+            categoria         = EXCLUDED.categoria,
+            prev_stock_fiscal = EXCLUDED.prev_stock_fiscal,
+            prev_stock_mgmt   = EXCLUDED.prev_stock_mgmt,
+            prev_stock_real   = NULL,
+            changed_at        = NOW()
+        `, [changedIds, prevFiscal, prevMgmt]);
       } catch (err) {
         console.error('[upload] Erro ao registrar audit de import:', err.message);
       }
@@ -245,7 +271,7 @@ router.post('/upload/:type', requireAdmin, async (req, res) => {
   }
 
   res.json({ documentId, type, total: extracted.length, updated, status: 'success' });
-});
+}));
 
 // GET /api/documents/history
 router.get('/history', requireAdmin, async (req, res) => {
@@ -299,7 +325,7 @@ router.get('/rawtext/:id', requireAdmin, async (req, res) => {
 
 
 // POST /api/documents/apply-groups — aplica as categorias de todos os grupos
-router.post('/apply-groups', requireAdmin, async (req, res) => {
+router.post('/apply-groups', requireAdmin, serializeImport(async (req, res) => {
   const { groups } = req.body || {};
   if (!Array.isArray(groups) || !groups.length)
     return res.status(400).json({ error: 'Nenhum grupo enviado.' });
@@ -376,13 +402,15 @@ router.post('/apply-groups', requireAdmin, async (req, res) => {
   // Grava audit para os produtos que trocaram de grupo
   if (auditIds.length) {
     try {
+      const prevCats = auditIds.map(id => currentMap.get(id)?.categoria ?? null);
       await pool.query(`
         INSERT INTO ${_s}product_audit
-          (product_id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, categoria, last_categoria_changed_at, changed_at)
-        SELECT
-          id, name, stock_fiscal, snap_stock_mgmt, stock_real, fiscal_alert, categoria, NOW(), NOW()
-        FROM ${_s}products
-        WHERE id = ANY($1::text[])
+          (product_id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, categoria,
+           prev_categoria, last_categoria_changed_at, changed_at)
+        SELECT p.id, p.name, p.stock_fiscal, p.snap_stock_mgmt, p.stock_real, p.fiscal_alert,
+               p.categoria, v.pc, NOW(), NOW()
+        FROM ${_s}products p
+        JOIN (SELECT unnest($1::text[]) AS id, unnest($2::text[]) AS pc) v ON v.id = p.id
         ON CONFLICT (product_id) DO UPDATE SET
           name                      = EXCLUDED.name,
           stock_fiscal              = EXCLUDED.stock_fiscal,
@@ -390,9 +418,10 @@ router.post('/apply-groups', requireAdmin, async (req, res) => {
           stock_real                = EXCLUDED.stock_real,
           fiscal_alert              = EXCLUDED.fiscal_alert,
           categoria                 = EXCLUDED.categoria,
+          prev_categoria            = EXCLUDED.prev_categoria,
           last_categoria_changed_at = EXCLUDED.last_categoria_changed_at,
           changed_at                = NOW()
-      `, [auditIds]);
+      `, [auditIds, prevCats]);
     } catch (err) {
       console.error('[apply-groups] Erro ao registrar audit:', err.message);
     }
@@ -408,7 +437,7 @@ router.post('/apply-groups', requireAdmin, async (req, res) => {
   }
 
   res.json({ updated, groups: groupsApplied });
-});
+}));
 
 // GET /api/documents/
 router.get('/', requireAdmin, async (req, res) => {
