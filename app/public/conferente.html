@@ -1,133 +1,212 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#ffffff">
-<title>Conferente — Gato Preto</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="./css/style.conferente.css">
-<link rel="icon" href="logo.png" type="image/png">
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>Conferente — Gato Preto</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./css/style.conferente.css" />
+    <link rel="icon" href="logo.png" type="image/png" />
+  </head>
+  <body>
+    <!-- ╔══ APP SCREEN ═════════════════════════════════════╗ -->
+    <div id="screen-app">
+      <!-- Sticky header group -->
+      <div class="sticky-top">
+        <!-- Header -->
+        <header class="app-header">
+          <div class="header-left">
+            <div class="logo-mark">Gato <span>Preto</span></div>
+            <div class="logo-sub">Conferente de Estoque</div>
+          </div>
+          <div class="header-right">
+            <span class="header-user" id="header-user"></span>
+            <a
+              class="btn-logout"
+              href="#"
+              onclick="
+                location.href = (window.APP_BASE || '') + '/';
+                return false;
+              "
+              style="text-decoration: none"
+              >Ver Catálogo</a
+            >
+            <button class="btn-logout" onclick="logout()">Sair</button>
+          </div>
+        </header>
 
-<!-- ╔══ APP SCREEN ═════════════════════════════════════╗ -->
-<div id="screen-app">
+        <!-- Search -->
+        <div class="search-bar">
+          <div class="search-input-wrap">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              class="search-input"
+              id="search-name"
+              type="search"
+              placeholder="Buscar por nome…"
+              autocomplete="off"
+              autocorrect="off"
+              spellcheck="false"
+              inputmode="search"
+            />
+          </div>
+          <div class="search-input-wrap code-wrap">
+            <input
+              class="search-input"
+              id="search-code"
+              type="search"
+              placeholder="Buscar por código…"
+              autocomplete="off"
+              autocorrect="off"
+              spellcheck="false"
+              inputmode="search"
+            />
+          </div>
+          <button
+            class="filter-btn"
+            id="alert-filter-btn"
+            onclick="toggleAlertFilter()"
+            title="Apenas alertas fiscais"
+          >
+            ⚠️
+          </button>
+        </div>
 
-  <!-- Sticky header group -->
-  <div class="sticky-top">
+        <!-- Status chips -->
+        <div class="status-tabs">
+          <button
+            class="chip active"
+            data-status="T"
+            onclick="setStatus('T', this)"
+          >
+            Todos
+          </button>
+          <button class="chip" data-status="0" onclick="setStatus('0', this)">
+            Iguais
+          </button>
+          <button class="chip" data-status="1" onclick="setStatus('1', this)">
+            Divergentes
+          </button>
+          <button class="chip" data-status="2" onclick="setStatus('2', this)">
+            Só Fiscal
+          </button>
+        </div>
+      </div>
 
-    <!-- Header -->
-    <header class="app-header">
-      <div class="header-left">
-        <div class="logo-mark">Gato <span>Preto</span></div>
-        <div class="logo-sub">Conferente de Estoque</div>
-      </div>
-      <div class="header-right">
-        <span class="header-user" id="header-user"></span>
-        <a class="btn-logout" href="#" onclick="location.href=(window.APP_BASE||'')+'/';return false" style="text-decoration:none">Ver Catálogo</a>
-        <button class="btn-logout" onclick="logout()">Sair</button>
-      </div>
-    </header>
+      <!-- Product list -->
+      <div class="product-list" id="product-list"></div>
 
-    <!-- Search -->
-    <div class="search-bar">
-      <div class="search-input-wrap">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-        <input class="search-input" id="search-name" type="search" placeholder="Buscar por nome…"
-               autocomplete="off" autocorrect="off" spellcheck="false" inputmode="search">
-      </div>
-      <div class="search-input-wrap code-wrap">
-        <input class="search-input" id="search-code" type="search" placeholder="Buscar por código…"
-               autocomplete="off" autocorrect="off" spellcheck="false" inputmode="search">
-      </div>
-      <button class="filter-btn" id="alert-filter-btn" onclick="toggleAlertFilter()" title="Apenas alertas fiscais">
-        ⚠️
-      </button>
+      <!-- Pagination info -->
+      <div class="pg-info" id="pg-info"></div>
+      <div class="pagination" id="pagination"></div>
     </div>
 
-    <!-- Status chips -->
-    <div class="status-tabs">
-      <button class="chip active" data-status="T" onclick="setStatus('T',this)">Todos</button>
-      <button class="chip" data-status="0" onclick="setStatus('0',this)">Iguais</button>
-      <button class="chip" data-status="1" onclick="setStatus('1',this)">Divergentes</button>
-      <button class="chip" data-status="2" onclick="setStatus('2',this)">Só Fiscal</button>
-    </div>
-
-  </div>
-
-  <!-- Product list -->
-  <div class="product-list" id="product-list"></div>
-
-  <!-- Pagination info -->
-  <div class="pg-info" id="pg-info"></div>
-  <div class="pagination" id="pagination"></div>
-
-</div>
-
-<!-- ╔══ BOTTOM SHEET ═══════════════════════════════════╗ -->
-<div class="sheet-overlay" id="sheet-overlay" onclick="closeSheet()"></div>
-<div class="bottom-sheet" id="bottom-sheet">
-  <div class="sheet-handle"></div>
-  <div class="sheet-header">
-    <button class="btn-sheet-close" onclick="closeSheet()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-        <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 5 5 12 12 19"/>
-      </svg>
-    </button>
-    <div class="sheet-title">
-      <h3 id="sheet-name">—</h3>
-      <p id="sheet-ref">—</p>
-    </div>
-  </div>
-  <div class="sheet-body">
-
-    <!-- Fiscal alert banner -->
-    <div class="fiscal-alert-banner" id="fiscal-banner">
-      <span>⚠️</span>
-      <span>Este produto está marcado para desativação no fiscal (estoque real zerado).</span>
-    </div>
-
-    <!-- Current stock info -->
-    <div class="info-grid">
-      <div class="info-box">
-        <div class="info-box-label">Fiscal</div>
-        <div class="info-box-value" id="sh-fiscal">—</div>
+    <!-- ╔══ BOTTOM SHEET ═══════════════════════════════════╗ -->
+    <div class="sheet-overlay" id="sheet-overlay" onclick="closeSheet()"></div>
+    <div class="bottom-sheet" id="bottom-sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <button class="btn-sheet-close" onclick="closeSheet()">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+          >
+            <line x1="19" y1="12" x2="5" y2="12" />
+            <polyline points="12 5 5 12 12 19" />
+          </svg>
+        </button>
+        <div class="sheet-title">
+          <h3 id="sheet-name">—</h3>
+          <p id="sheet-ref">—</p>
+        </div>
       </div>
-      <div class="info-box">
-        <div class="info-box-label">Gerencial</div>
-        <div class="info-box-value" id="sh-mgmt">—</div>
-      </div>
-      <div class="info-box">
-        <div class="info-box-label">Real atual</div>
-        <div class="info-box-value accent" id="sh-real">—</div>
+      <div class="sheet-body">
+        <!-- Fiscal alert banner -->
+        <div class="fiscal-alert-banner" id="fiscal-banner">
+          <span>⚠️</span>
+          <span
+            >Este produto está marcado para desativação no fiscal (estoque real
+            zerado).</span
+          >
+        </div>
+
+        <!-- Current stock info -->
+        <div class="info-grid">
+          <div class="info-box">
+            <div class="info-box-label">Fiscal</div>
+            <div class="info-box-value" id="sh-fiscal">—</div>
+          </div>
+          <div class="info-box">
+            <div class="info-box-label">Gerencial</div>
+            <div class="info-box-value" id="sh-mgmt">—</div>
+          </div>
+          <div class="info-box">
+            <div class="info-box-label">Real atual</div>
+            <div class="info-box-value accent" id="sh-real">—</div>
+          </div>
+        </div>
+
+        <!-- Real stock input -->
+        <div class="field">
+          <label for="inp-real">Contagem de Estoque Real</label>
+          <input
+            class="field-input"
+            id="inp-real"
+            type="number"
+            inputmode="decimal"
+            min="0"
+            step="1"
+            placeholder="0"
+            autocomplete="off"
+          />
+        </div>
+
+        <!-- Stock rule hint -->
+        <div class="rule-hint" id="rule-hint"></div>
+
+        <!-- Save button -->
+        <button class="btn-save" id="btn-save" onclick="saveProduct()">
+          Salvar
+        </button>
+        <div
+          class="err-msg"
+          id="sheet-err"
+          style="
+            color: var(--red);
+            font-size: 0.78rem;
+            margin-top: 0.65rem;
+            text-align: center;
+            display: none;
+          "
+        ></div>
       </div>
     </div>
 
-    <!-- Real stock input -->
-    <div class="field">
-      <label for="inp-real">Contagem de Estoque Real</label>
-      <input class="field-input" id="inp-real" type="number" inputmode="decimal"
-             min="0" step="1" placeholder="0" autocomplete="off">
-    </div>
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
 
-    <!-- Stock rule hint -->
-    <div class="rule-hint" id="rule-hint"></div>
-
-    <!-- Save button -->
-    <button class="btn-save" id="btn-save" onclick="saveProduct()">Salvar</button>
-    <div class="err-msg" id="sheet-err" style="color:var(--red);font-size:.78rem;margin-top:.65rem;text-align:center;display:none"></div>
-
-  </div>
-</div>
-
-<!-- Toast -->
-<div class="toast" id="toast"></div>
-
-<script src="js/conferente.js"></script>
-</body>
+    <script src="js/conferente.js"></script>
+  </body>
 </html>

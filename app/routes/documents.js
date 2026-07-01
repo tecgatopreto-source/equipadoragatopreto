@@ -120,7 +120,7 @@ router.post('/upload/:type', requireAdmin, async (req, res) => {
   // 4. Carrega produtos e extrai dados do PDF
   let productMap, extracted;
   try {
-    const { rows } = await pool.query(`SELECT id, name FROM ${_s}products`);
+    const { rows } = await pool.query(`SELECT id, name, snap_stock_mgmt, stock_fiscal FROM ${_s}products`);
     productMap = new Map(rows.map(p => [p.id, p]));
     extracted  = parsePdf(rawText, productMap, type);
   } catch (err) {
@@ -171,7 +171,6 @@ router.post('/upload/:type', requireAdmin, async (req, res) => {
           snap_stock_mgmt = COALESCE(EXCLUDED.snap_stock_mgmt, products.snap_stock_mgmt),
           snap_mgmt_at    = CASE WHEN EXCLUDED.snap_price_mgmt IS NOT NULL OR EXCLUDED.snap_stock_mgmt IS NOT NULL
                                  THEN NOW() ELSE products.snap_mgmt_at END,
-          is_disabled     = EXCLUDED.is_disabled,
           name            = CASE WHEN EXCLUDED.name IS NOT NULL AND EXCLUDED.name != ''
                                  THEN EXCLUDED.name ELSE products.name END,
           categoria       = COALESCE(EXCLUDED.categoria, products.categoria),
@@ -183,6 +182,38 @@ router.post('/upload/:type', requireAdmin, async (req, res) => {
     } catch (err) {
       console.error('[upload] Erro no bulk upsert:', err.message);
       return res.status(500).json({ error: 'Erro ao salvar produtos: ' + err.message });
+    }
+
+    const qtyField = type === 'gerencial' ? 'snap_stock_mgmt' : 'stock_fiscal';
+    const changedIds = extracted
+      .filter(i => {
+        const prev    = productMap.get(i.productId);
+        const newVal  = i.suggested[qtyField];
+        const prevNum = prev != null ? parseFloat(prev[qtyField]) : NaN;
+        return isNaN(prevNum) || prevNum !== newVal;
+      })
+      .map(i => i.productId);
+
+    if (changedIds.length > 0) {
+      try {
+        await pool.query(`
+          INSERT INTO ${_s}product_audit
+            (product_id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, categoria, changed_at)
+          SELECT
+            id, name, stock_fiscal, snap_stock_mgmt, NULL, fiscal_alert, categoria, NOW()
+          FROM ${_s}products
+          WHERE id = ANY($1::text[])
+          ON CONFLICT (product_id) DO UPDATE SET
+            name         = EXCLUDED.name,
+            stock_fiscal = EXCLUDED.stock_fiscal,
+            stock_mgmt   = EXCLUDED.stock_mgmt,
+            fiscal_alert = EXCLUDED.fiscal_alert,
+            categoria    = EXCLUDED.categoria,
+            changed_at   = NOW()
+        `, [changedIds]);
+      } catch (err) {
+        console.error('[upload] Erro ao registrar audit de import:', err.message);
+      }
     }
   }
 
@@ -276,14 +307,28 @@ router.post('/apply-groups', requireAdmin, async (req, res) => {
   const pool = getDb();
   let updated = 0, groupsApplied = 0;
 
+  // Carrega estado atual de categoria dos produtos que serão alterados
+  const allIds = groups.flatMap(g => (!g.skip && Array.isArray(g.productIds)) ? g.productIds : []);
+  let currentMap = new Map();
+  if (allIds.length) {
+    const { rows: curRows } = await pool.query(
+      `SELECT id, categoria, is_disabled FROM ${_s}products WHERE id = ANY($1::text[])`,
+      [allIds]
+    );
+    currentMap = new Map(curRows.map(r => [r.id, r]));
+  }
+
+  const auditIds = []; // produtos cujo grupo mudou de fato
+
   for (const g of groups) {
     if (!Array.isArray(g.productIds) || !g.productIds.length) continue;
 
     if (g.skip) {
-      // NIVEL MESTRE: apenas limpa categoria, não mexe em is_disabled
+      // NIVEL MESTRE: apenas limpa categoria onde ainda não está NULL
       try {
         await pool.query(
-          `UPDATE ${_s}products SET categoria = NULL, updated_at = NOW() WHERE id = ANY($1::text[])`,
+          `UPDATE ${_s}products SET categoria = NULL, updated_at = NOW()
+           WHERE id = ANY($1::text[]) AND categoria IS NOT NULL`,
           [g.productIds]
         );
       } catch (err) {
@@ -297,21 +342,59 @@ router.post('/apply-groups', requireAdmin, async (req, res) => {
       let rowCount;
       if (g.disabled) {
         // Grupo "01 DESATIVADO": marca is_disabled = 1, categoria = NULL
-        ({ rowCount } = await pool.query(
-          `UPDATE ${_s}products SET is_disabled = 1, categoria = NULL, updated_at = NOW() WHERE id = ANY($1::text[])`,
+        await pool.query(
+          `UPDATE ${_s}products SET is_disabled = 1, categoria = NULL, updated_at = NOW()
+           WHERE id = ANY($1::text[]) AND (is_disabled IS DISTINCT FROM 1 OR categoria IS NOT NULL)`,
           [g.productIds]
-        ));
+        );
+        // Conta apenas quem mudou de categoria (era não-nulo)
+        const catChanged = g.productIds.filter(id => {
+          const c = currentMap.get(id);
+          return c && c.categoria !== null;
+        });
+        updated += catChanged.length;
+        auditIds.push(...catChanged);
       } else {
-        // Grupo normal: atribui categoria e garante is_disabled = 0
+        // Grupo normal: atribui apenas categoria
         ({ rowCount } = await pool.query(
-          `UPDATE ${_s}products SET categoria = $1, is_disabled = 0, updated_at = NOW() WHERE id = ANY($2::text[])`,
+          `UPDATE ${_s}products SET categoria = $1, updated_at = NOW()
+           WHERE id = ANY($2::text[]) AND categoria IS DISTINCT FROM $1`,
           [g.name, g.productIds]
         ));
+        updated += rowCount;
+        auditIds.push(...g.productIds.filter(id => {
+          const c = currentMap.get(id);
+          return c && c.categoria !== g.name;
+        }));
       }
-      updated += rowCount;
       groupsApplied++;
     } catch (err) {
       console.error('[apply-groups] Erro grupo', g.name + ':', err.message);
+    }
+  }
+
+  // Grava audit para os produtos que trocaram de grupo
+  if (auditIds.length) {
+    try {
+      await pool.query(`
+        INSERT INTO ${_s}product_audit
+          (product_id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, categoria, last_categoria_changed_at, changed_at)
+        SELECT
+          id, name, stock_fiscal, snap_stock_mgmt, stock_real, fiscal_alert, categoria, NOW(), NOW()
+        FROM ${_s}products
+        WHERE id = ANY($1::text[])
+        ON CONFLICT (product_id) DO UPDATE SET
+          name                      = EXCLUDED.name,
+          stock_fiscal              = EXCLUDED.stock_fiscal,
+          stock_mgmt                = EXCLUDED.stock_mgmt,
+          stock_real                = EXCLUDED.stock_real,
+          fiscal_alert              = EXCLUDED.fiscal_alert,
+          categoria                 = EXCLUDED.categoria,
+          last_categoria_changed_at = EXCLUDED.last_categoria_changed_at,
+          changed_at                = NOW()
+      `, [auditIds]);
+    } catch (err) {
+      console.error('[apply-groups] Erro ao registrar audit:', err.message);
     }
   }
 

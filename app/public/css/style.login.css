@@ -1,16 +1,22 @@
 :root {
-  --bg: #FAFAF7;
-  --gp-green: #7DD33C;
-  --gp-green-dark: #5FAB28;
-  --gp-green-soft: #E9F8D8;
-  --ink: #15171A;
-  --muted: #6B7079;
-  --ink-2: #2A2D33;
-  --border: #E6E8EB;
-  --danger: #D54E4E;
+  --bg: #fafaf7;
+  --gp-green: #7dd33c;
+  --gp-green-dark: #5fab28;
+  --gp-green-soft: #e9f8d8;
+  --ink: #15171a;
+  --muted: #6b7079;
+  --ink-2: #2a2d33;
+  --border: #e6e8eb;
+  --danger: #d54e4e;
 }
 
-*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
 body.login-shell {
   min-height: 100vh;
@@ -18,19 +24,27 @@ body.login-shell {
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  font-family: 'Inter', sans-serif;
+  font-family: "Inter", sans-serif;
   background: var(--bg);
   background-image:
-    radial-gradient(circle at 20% 30%, rgba(125,211,60,.08), transparent 50%),
-    radial-gradient(circle at 80% 70%, rgba(125,211,60,.05), transparent 50%);
+    radial-gradient(
+      circle at 20% 30%,
+      rgba(125, 211, 60, 0.08),
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at 80% 70%,
+      rgba(125, 211, 60, 0.05),
+      transparent 50%
+    );
 }
 
 .login-card {
-  background: #FFFFFF;
+  background: #ffffff;
   border: 1px solid var(--border);
   border-radius: 20px;
   padding: 40px 36px;
-  box-shadow: 0 4px 14px rgba(15,17,20,.06);
+  box-shadow: 0 4px 14px rgba(15, 17, 20, 0.06);
   max-width: 440px;
   width: 100%;
 }
@@ -60,7 +74,9 @@ body.login-shell {
   margin-bottom: 28px;
 }
 
-.field { margin-bottom: 16px; }
+.field {
+  margin-bottom: 16px;
+}
 
 label {
   display: block;
@@ -77,10 +93,12 @@ input {
   border-radius: 8px;
   padding: 9px 12px;
   font-size: 13px;
-  font-family: 'Inter', sans-serif;
+  font-family: "Inter", sans-serif;
   color: var(--ink);
   outline: none;
-  transition: border-color .15s, box-shadow .15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 input:focus {
@@ -92,8 +110,8 @@ input:focus {
   display: none;
   align-items: flex-start;
   gap: 10px;
-  background: rgba(213,78,78,.08);
-  border: 1px solid rgba(213,78,78,.28);
+  background: rgba(213, 78, 78, 0.08);
+  border: 1px solid rgba(213, 78, 78, 0.28);
   border-radius: 8px;
   padding: 10px 12px;
   color: var(--danger);
@@ -106,24 +124,29 @@ input:focus {
   width: 100%;
   padding: 12px;
   background: var(--gp-green);
-  color: #FFFFFF;
+  color: #ffffff;
   font-weight: 700;
   font-size: 15px;
   border: none;
   border-radius: 10px;
-  font-family: 'Inter', sans-serif;
+  font-family: "Inter", sans-serif;
   cursor: pointer;
-  transition: background .15s;
+  transition: background 0.15s;
 }
 
-.btn:hover { background: var(--gp-green-dark); }
+.btn:hover {
+  background: var(--gp-green-dark);
+}
 
 .btn:focus {
   outline: none;
   box-shadow: 0 0 0 3px var(--gp-green-soft);
 }
 
-.btn:disabled { opacity: .55; cursor: not-allowed; }
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 .back {
   display: block;
@@ -134,8 +157,13 @@ input:focus {
   text-decoration: none;
 }
 
-.back:hover { color: var(--ink); }
+.back:hover {
+  color: var(--ink);
+}
 
 @media (max-width: 480px) {
-  .login-card { padding: 32px 24px; border-radius: 16px; }
+  .login-card {
+    padding: 32px 24px;
+    border-radius: 16px;
+  }
 }

@@ -267,6 +267,7 @@ router.get('/report', authenticate, async (req, res) => {
         a.stock_fiscal,
         a.stock_mgmt,
         a.stock_real,
+        a.categoria,
         TO_CHAR(a.changed_at AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY') AS data,
         TO_CHAR(a.changed_at AT TIME ZONE 'America/Sao_Paulo', 'HH24:MI:SS') AS hora,
         a.changed_at
@@ -454,16 +455,18 @@ router.put('/:id', requireAdmin, async (req, res) => {
 
     if (changed) {
       await pool.query(
-        `INSERT INTO ${_s}product_audit (product_id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, changed_at)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        `INSERT INTO ${_s}product_audit (product_id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, categoria, changed_at)
+         SELECT id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, categoria, NOW()
+         FROM ${_s}products WHERE id = $1
          ON CONFLICT(product_id) DO UPDATE SET
            name         = EXCLUDED.name,
            stock_fiscal = EXCLUDED.stock_fiscal,
            stock_mgmt   = EXCLUDED.stock_mgmt,
            stock_real   = EXCLUDED.stock_real,
            fiscal_alert = EXCLUDED.fiscal_alert,
+           categoria    = EXCLUDED.categoria,
            changed_at   = EXCLUDED.changed_at`,
-        [req.params.id, newName, newStockFiscal, newStockMgmt, newStockReal, newFiscalAlert]
+        [req.params.id]
       );
     }
 
@@ -508,12 +511,13 @@ router.patch('/:id/stock-real', authenticate, async (req, res) => {
     const changed = realVal != before.stock_real || newStockMgmt != before.stock_mgmt || newFiscalAlert !== before.fiscal_alert;
     if (changed) {
       await pool.query(
-        `INSERT INTO ${_s}product_audit (product_id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, changed_at)
-         SELECT id, name, stock_fiscal, $1, $2, $3, NOW() FROM ${_s}products WHERE id = $4
+        `INSERT INTO ${_s}product_audit (product_id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, categoria, changed_at)
+         SELECT id, name, stock_fiscal, $1, $2, $3, categoria, NOW() FROM ${_s}products WHERE id = $4
          ON CONFLICT(product_id) DO UPDATE SET
            stock_mgmt   = EXCLUDED.stock_mgmt,
            stock_real   = EXCLUDED.stock_real,
            fiscal_alert = EXCLUDED.fiscal_alert,
+           categoria    = EXCLUDED.categoria,
            changed_at   = EXCLUDED.changed_at`,
         [newStockMgmt, realVal, newFiscalAlert, req.params.id]
       );
