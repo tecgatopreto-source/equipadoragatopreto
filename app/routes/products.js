@@ -272,6 +272,7 @@ router.get('/report', authenticate, async (req, res) => {
         a.prev_stock_mgmt,
         a.prev_stock_real,
         a.prev_categoria,
+        a.last_categoria_changed_at,
         TO_CHAR(a.changed_at AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY') AS data,
         TO_CHAR(a.changed_at AT TIME ZONE 'America/Sao_Paulo', 'HH24:MI:SS') AS hora,
         a.changed_at
