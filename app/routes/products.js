@@ -591,12 +591,40 @@ router.post('/:id/images/upload', imgUpload.single('image'), async (req, res) =>
   }
 });
 
+// ── Validação de URL de imagem (protocolo http/https, sem hosts internos) ──
+function isValidImageUrl(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+
+  const host = parsed.hostname.toLowerCase();
+  if (
+    host === 'localhost' ||
+    host === '0.0.0.0' ||
+    /^127\./.test(host) ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
+    /^169\.254\./.test(host) ||
+    host === '::1' ||
+    host.endsWith('.local')
+  ) {
+    return false;
+  }
+  return true;
+}
+
 // ── POST /api/products/:id/images ─────────────────────────────────────────
 router.post('/:id/images', async (req, res) => {
   try {
     const pool = getDb();
     const { url, is_pinned = 0, is_manual = 0 } = req.body;
     if (!url) return res.status(400).json({ error: 'URL é obrigatória' });
+    if (!isValidImageUrl(url)) return res.status(400).json({ error: 'URL inválida. Use um endereço http:// ou https:// público.' });
 
     const { rows } = await pool.query(`SELECT id FROM ${_s}products WHERE id = $1`, [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Produto não encontrado' });
