@@ -849,7 +849,7 @@ async function loadReport() {
 
   tbody.innerHTML = data.rows
     .map((r) => {
-      const fiscalChanged = r.prev_stock_fiscal != null && Number(r.prev_stock_fiscal) !== Number(r.stock_fiscal);
+      const fiscalChanged = r.stock_fiscal != null && (r.prev_stock_fiscal == null || Number(r.prev_stock_fiscal) !== Number(r.stock_fiscal));
       const mgmtChanged   = r.prev_stock_mgmt   != null && Number(r.prev_stock_mgmt)   !== Number(r.stock_mgmt);
       const realChanged   = r.prev_stock_real   != null && Number(r.prev_stock_real)   !== Number(r.stock_real);
       const catChanged    = r.prev_categoria    != null && r.prev_categoria             !== r.categoria;
