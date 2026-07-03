@@ -41,7 +41,7 @@ router.post('/login', async (req, res) => {
     const accessToken = data.access_token;
 
     const perfisRes  = await fetch(
-      `${SUPABASE_URL}/rest/v1/perfis?user_id=eq.${u.id}&sistema=eq.${SISTEMA}&select=role&limit=1`,
+      `${SUPABASE_URL}/rest/v1/perfis?user_id=eq.${encodeURIComponent(u.id)}&sistema=eq.${encodeURIComponent(SISTEMA)}&select=role&limit=1`,
       {
         headers: {
           'apikey': SUPABASE_ANON_KEY,
