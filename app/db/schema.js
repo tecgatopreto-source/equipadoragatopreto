@@ -31,7 +31,7 @@ async function initDb() {
     user: decodeURIComponent(u.username),
     password: decodeURIComponent(u.password),
     database: u.pathname.slice(1),
-    ssl: { rejectUnauthorized: false },
+    ssl: { rejectUnauthorized: process.env.NODE_ENV === 'production', servername: u.hostname },
     max: 20,
     idleTimeoutMillis: 60000,
     connectionTimeoutMillis: 5000,
