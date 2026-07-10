@@ -861,6 +861,7 @@ document.getElementById('cat-filter').addEventListener('focus', function () {
   _renderCatDropdown(this.value.trim());
 });
 document.getElementById('cat-filter').addEventListener('input', function () {
+  if (!this.value.trim() && currentCatLabel) _applyCatFilter('');
   _renderCatDropdown(this.value.trim());
 });
 document.getElementById('cat-dropdown').addEventListener('mousedown', function (e) {

@@ -1575,6 +1575,7 @@ loadActionStats();
   input.addEventListener("input", function () {
     _renderAdminCatDropdown(this.value.trim());
     _pos();
+    if (!this.value.trim() && catFilter) setCatFilter("");
   });
 
   dd.addEventListener("mousedown", function (e) {
