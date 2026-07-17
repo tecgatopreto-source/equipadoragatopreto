@@ -1430,7 +1430,7 @@ async function processGruposPdf(file) {
             (g) => `<tr style="${g.skip ? "opacity:.45" : ""}">
           <td style="padding:.35rem .75rem;border-bottom:1px solid var(--border)">
             ${g.name}
-            ${g.skip ? ' <em style="color:var(--muted)">(categoria → null)</em>' : ""}
+            ${g.skip ? ' <em style="color:var(--muted)">(categoria → null, reativa)</em>' : ""}
             ${g.disabled ? ' <em style="color:var(--amber)">(is_disabled = 1, categoria → null)</em>' : ""}
           </td>
           <td style="padding:.35rem .75rem;border-bottom:1px solid var(--border);text-align:right">${g.found}</td>

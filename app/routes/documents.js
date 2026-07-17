@@ -350,11 +350,11 @@ router.post('/apply-groups', requireAdmin, serializeImport(async (req, res) => {
     if (!Array.isArray(g.productIds) || !g.productIds.length) continue;
 
     if (g.skip) {
-      // NIVEL MESTRE: apenas limpa categoria onde ainda não está NULL
+      // NIVEL MESTRE: limpa categoria e reativa — sem categoria não significa desativado
       try {
         await pool.query(
-          `UPDATE ${_s}products SET categoria = NULL, updated_at = NOW()
-           WHERE id = ANY($1::text[]) AND categoria IS NOT NULL`,
+          `UPDATE ${_s}products SET categoria = NULL, is_disabled = 0, updated_at = NOW()
+           WHERE id = ANY($1::text[]) AND (categoria IS NOT NULL OR COALESCE(is_disabled, 0) <> 0)`,
           [g.productIds]
         );
       } catch (err) {
@@ -381,10 +381,10 @@ router.post('/apply-groups', requireAdmin, serializeImport(async (req, res) => {
         updated += catChanged.length;
         auditIds.push(...catChanged);
       } else {
-        // Grupo normal: atribui apenas categoria
+        // Grupo normal: atribui categoria e reativa — só o grupo DESATIVADO marca is_disabled
         ({ rowCount } = await pool.query(
-          `UPDATE ${_s}products SET categoria = $1, updated_at = NOW()
-           WHERE id = ANY($2::text[]) AND categoria IS DISTINCT FROM $1`,
+          `UPDATE ${_s}products SET categoria = $1, is_disabled = 0, updated_at = NOW()
+           WHERE id = ANY($2::text[]) AND (categoria IS DISTINCT FROM $1 OR COALESCE(is_disabled, 0) <> 0)`,
           [g.name, g.productIds]
         ));
         updated += rowCount;
