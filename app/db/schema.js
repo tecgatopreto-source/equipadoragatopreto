@@ -11,22 +11,17 @@ function getDb() {
 
 async function initDb() {
   const { URL } = require('url');
-  const dns = require('dns').promises;
+  const dns = require('dns');
+
+  // Prefere IPv4 sem congelar o IP: cada conexão nova re-resolve o DNS,
+  // então uma troca de IP do pooler do Supabase não derruba o app até restart.
+  dns.setDefaultResultOrder('ipv4first');
 
   const raw = process.env.DATABASE_URL;
   const u = new URL(raw);
 
-  let host = u.hostname;
-  try {
-    const { address } = await dns.lookup(u.hostname, { family: 4 });
-    host = address;
-    console.log(`[db] Resolved to IPv4: ${address}`);
-  } catch (e) {
-    console.warn('[db] IPv4 resolve failed, using hostname:', e.message);
-  }
-
   pool = new Pool({
-    host,
+    host: u.hostname,
     port: parseInt(u.port, 10) || 5432,
     user: decodeURIComponent(u.username),
     password: decodeURIComponent(u.password),
