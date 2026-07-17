@@ -1,5 +1,5 @@
 # Dependencies
-app/node_modules/
+node_modules/
 
 # Database (runtime — não commitar)
 app/db/gatopreto.db
@@ -23,6 +23,11 @@ app/uploads/
 .DS_Store
 Thumbs.db
 *.log
+.vscode/
+
+# Claude Code (config local, não do projeto)
+.claude/
+.claude/skills/
 
 # PDFs de relatório (arquivos de trabalho locais)
 *.pdf
