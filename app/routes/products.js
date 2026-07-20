@@ -442,6 +442,9 @@ router.put('/:id', requireAdmin, async (req, res) => {
     const newStatus      = calcStatus(newStockFiscal, before.snap_stock_mgmt);
 
     const catVal = categoria !== undefined ? (categoria || null) : undefined;
+    const finalCategoria   = catVal != null ? catVal : before.categoria;
+    const catReallyChanged = finalCategoria !== before.categoria;
+
     await pool.query(
       `UPDATE ${_s}products SET name=$1, price_mgmt=$2, stock_fiscal=$3, stock_mgmt=$4,
        stock_real=$5, fiscal_alert=$6, status=$7,
@@ -456,29 +459,39 @@ router.put('/:id', requireAdmin, async (req, res) => {
       newStockMgmt   != before.stock_mgmt   ||
       newStockReal   != before.stock_real   ||
       newFiscalAlert !== before.fiscal_alert ||
-      newStatus      !== before.status;
+      newStatus      !== before.status      ||
+      catReallyChanged;
 
     if (changed) {
+      // prev_categoria/last_categoria_changed_at só são regravados quando a categoria
+      // de fato muda nesta chamada — caso contrário preservam o valor já registrado,
+      // senão qualquer edição (nome, estoque real etc.) "carimbaria" o grupo como
+      // alterado agora mesmo, mesmo sem nenhuma mudança de grupo ter ocorrido.
+      const prevCategoriaParam = catReallyChanged ? before.categoria : null;
       await pool.query(
         `INSERT INTO ${_s}product_audit
            (product_id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, categoria,
-            prev_stock_fiscal, prev_stock_mgmt, prev_stock_real, prev_categoria, changed_at)
+            prev_stock_fiscal, prev_stock_mgmt, prev_stock_real, prev_categoria,
+            last_categoria_changed_at, changed_at)
          SELECT id, name, stock_fiscal, stock_mgmt, stock_real, fiscal_alert, categoria,
-                $2, $3, $4, $5, NOW()
+                $2, $3, $4, $5, CASE WHEN $6 THEN NOW() ELSE NULL END, NOW()
          FROM ${_s}products WHERE id = $1
          ON CONFLICT(product_id) DO UPDATE SET
-           name              = EXCLUDED.name,
-           stock_fiscal      = EXCLUDED.stock_fiscal,
-           stock_mgmt        = EXCLUDED.stock_mgmt,
-           stock_real        = EXCLUDED.stock_real,
-           fiscal_alert      = EXCLUDED.fiscal_alert,
-           categoria         = EXCLUDED.categoria,
-           prev_stock_fiscal = EXCLUDED.prev_stock_fiscal,
-           prev_stock_mgmt   = EXCLUDED.prev_stock_mgmt,
-           prev_stock_real   = EXCLUDED.prev_stock_real,
-           prev_categoria    = EXCLUDED.prev_categoria,
-           changed_at        = EXCLUDED.changed_at`,
-        [req.params.id, before.stock_fiscal, before.stock_mgmt, before.stock_real, before.categoria]
+           name                      = EXCLUDED.name,
+           stock_fiscal              = EXCLUDED.stock_fiscal,
+           stock_mgmt                = EXCLUDED.stock_mgmt,
+           stock_real                = EXCLUDED.stock_real,
+           fiscal_alert              = EXCLUDED.fiscal_alert,
+           categoria                 = EXCLUDED.categoria,
+           prev_stock_mgmt           = EXCLUDED.prev_stock_mgmt,
+           prev_stock_real           = EXCLUDED.prev_stock_real,
+           prev_categoria            = CASE WHEN $6 THEN EXCLUDED.prev_categoria
+                                             ELSE product_audit.prev_categoria END,
+           last_categoria_changed_at = CASE WHEN $6 THEN EXCLUDED.last_categoria_changed_at
+                                             ELSE product_audit.last_categoria_changed_at END,
+           changed_at                = EXCLUDED.changed_at`,
+        [req.params.id, before.stock_fiscal, before.stock_mgmt, before.stock_real,
+         prevCategoriaParam, catReallyChanged]
       );
     }
 

@@ -852,7 +852,7 @@ async function loadReport() {
       const fiscalChanged = r.stock_fiscal != null && (r.prev_stock_fiscal == null || Number(r.prev_stock_fiscal) !== Number(r.stock_fiscal));
       const mgmtChanged   = r.prev_stock_mgmt   != null && Number(r.prev_stock_mgmt)   !== Number(r.stock_mgmt);
       const realChanged   = r.prev_stock_real   != null && Number(r.prev_stock_real)   !== Number(r.stock_real);
-      const catChanged    = r.prev_categoria !== r.categoria && (r.prev_categoria != null || r.last_categoria_changed_at != null);
+      const catChanged    = r.prev_categoria !== r.categoria && r.last_categoria_changed_at != null && r.last_categoria_changed_at === r.changed_at;
       const catBadge = r.categoria
         ? catChanged
           ? `<span style="background:rgba(181,98,10,.12);color:var(--amber);padding:.15rem .45rem;border-radius:4px;white-space:nowrap;font-weight:700">${r.categoria}</span>`
