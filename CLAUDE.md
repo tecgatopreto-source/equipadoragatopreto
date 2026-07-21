@@ -77,6 +77,8 @@ SVG category icons live in `svg/` and are served at `/svg/`. The frontend picks 
 
 ## Authentication
 
+**SSO com a Central de Sistemas:** `POST /api/auth/sso` recebe `{ access_token }` (da sessão Supabase compartilhada `gp_session` que a Central e os demais sistemas guardam no localStorage — todos na mesma origem em produção), valida o token via `GET /auth/v1/user`, aplica o mesmo gate de `perfis` do login por senha e emite o mesmo cookie `gp_auth`. O client `public/js/login.js` tenta esse fluxo automaticamente ao abrir a tela de login; se falhar, o formulário de senha é o fallback.
+
 Login is a two-step server-side flow in `routes/auth.js`:
 
 1. **Supabase Auth** — `POST /auth/v1/token?grant_type=password` validates credentials and returns an `access_token`.

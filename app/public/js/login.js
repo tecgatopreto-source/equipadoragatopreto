@@ -1,4 +1,34 @@
 const BASE = window.APP_BASE || '';
+
+function redirectByRole(user) {
+  localStorage.setItem('gp_user', JSON.stringify(user));
+  const role = user.role;
+  window.location.href = role === 'admin' ? BASE + '/admin' : role === 'conferente' ? BASE + '/conferente' : BASE + '/';
+}
+
+// SSO: se existe a sessão Supabase compartilhada dos sistemas Gato Preto
+// ('gp_session', gravada pela Central de Sistemas na mesma origem), troca o
+// access_token pelo cookie gp_auth sem pedir senha. Falhou → formulário normal.
+(async () => {
+  try {
+    const raw = localStorage.getItem('gp_session');
+    if (!raw) return;
+    const stored = JSON.parse(raw);
+    if (!stored || !stored.access_token) return;
+
+    const res = await fetch(BASE + '/api/auth/sso', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ access_token: stored.access_token })
+    });
+    if (!res.ok) return;
+
+    const data = await res.json();
+    redirectByRole(data.user);
+  } catch (_) { /* segue para o login manual */ }
+})();
+
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = document.getElementById('btn');
@@ -26,9 +56,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
       throw new Error(msg);
     }
 
-    localStorage.setItem('gp_user', JSON.stringify(data.user));
-    const role = data.user.role;
-    window.location.href = role === 'admin' ? BASE + '/admin' : role === 'conferente' ? BASE + '/conferente' : BASE + '/';
+    redirectByRole(data.user);
   } catch (ex) {
     errText.textContent = ex.message;
     err.style.display = 'flex';
