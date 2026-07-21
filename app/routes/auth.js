@@ -7,8 +7,11 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const SISTEMA           = 'CatalogoProdutos';
 
 async function supabaseLogout(accessToken) {
+  // scope=local: revoga só a sessão recém-criada pelo login por senha. Sem o
+  // parâmetro, o Supabase revoga TODAS as sessões do usuário — derrubaria a
+  // sessão compartilhada 'gp_session' da plataforma inteira.
   try {
-    await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+    await fetch(`${SUPABASE_URL}/auth/v1/logout?scope=local`, {
       method: 'POST',
       headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${accessToken}` },
     });
