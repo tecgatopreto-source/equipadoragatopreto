@@ -1350,7 +1350,7 @@ async function loadImportHistory() {
           : "—";
         return `<tr>
         <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);white-space:nowrap;font-size:.72rem">${date}</td>
-        <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);font-weight:600;font-size:.72rem">${h.type === "fiscal" ? "📋 Fiscal" : "📊 Gerencial"}</td>
+        <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);font-weight:600;font-size:.72rem">${h.type === "fiscal" ? "📋 Fiscal" : h.type === "grupos" ? "🗂️ Grupos" : "📊 Gerencial"}</td>
         <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);font-size:.72rem">${h.total_products ?? "—"}</td>
         <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);color:var(--green);font-weight:700;font-size:.72rem">${h.updated_products ?? "—"}</td>
         <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);color:var(--muted);font-size:.72rem">${h.skipped ?? "—"}</td>
@@ -1461,6 +1461,7 @@ async function applyGrupos() {
       `<div style="color:var(--green);font-weight:700;font-size:.8rem">✅ Categorias aplicadas! ${data.updated} produtos atualizados em ${data.groups} grupos.</div>`;
     _gruposData = null;
     loadStats();
+    loadImportHistory();
   } catch (err) {
     s.textContent = "❌ Erro: " + err.message;
   }

@@ -436,6 +436,18 @@ router.post('/apply-groups', requireAdmin, serializeImport(async (req, res) => {
     console.error('[apply-groups] REFRESH VIEW falhou:', e.message);
   }
 
+  const totalParsed = groups.reduce((s, g) => s + (g.found || 0) + (g.notFound || 0), 0);
+  const notFoundTotal = groups.reduce((s, g) => s + (g.notFound || 0), 0);
+  try {
+    await pool.query(
+      `INSERT INTO ${_s}import_history (document_id, type, total_products, updated_products, skipped, status)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [null, 'grupos', totalParsed, updated, notFoundTotal, 'success']
+    );
+  } catch (err) {
+    console.error('[apply-groups] Erro ao gravar histórico:', err.message);
+  }
+
   res.json({ updated, groups: groupsApplied });
 }));
 
