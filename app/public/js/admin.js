@@ -1309,8 +1309,8 @@ async function _doUploadPdf(type, file) {
         <div style="font-size:1.6rem;font-weight:800;color:var(--green)">${data.updated.toLocaleString("pt-BR")}</div>
       </div>
       <div style="flex:1;min-width:120px">
-        <div style="font-size:.6rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem">Não encontrados no sistema</div>
-        <div style="font-size:1.6rem;font-weight:800;color:var(--amber)">${(data.total - data.updated).toLocaleString("pt-BR")}</div>
+        <div style="font-size:.6rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem">Novos no sistema</div>
+        <div style="font-size:1.6rem;font-weight:800;color:var(--amber)">${data.created.toLocaleString("pt-BR")}</div>
       </div>
     </div>
     ${noteGerencial}
@@ -1355,8 +1355,7 @@ async function loadImportHistory() {
         <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);color:var(--green);font-weight:700;font-size:.72rem">${h.updated_products ?? "—"}</td>
         <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);color:var(--muted);font-size:.72rem">${h.skipped ?? "—"}</td>
         <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);color:${statusColor};font-weight:700;font-size:.72rem">${statusLabel}</td>
-        <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);color:var(--muted);font-size:.68rem">${h.filename || "—"}</td>
-        <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);color:var(--muted);font-size:.68rem">${h.document_id || "—"}</td>
+        <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);color:var(--muted);font-size:.68rem;max-width:220px;overflow-wrap:anywhere">${h.filename || "—"}</td>
       </tr>`;
       })
       .join("");
@@ -1454,6 +1453,8 @@ async function applyGrupos() {
   try {
     const data = await api("POST", "/documents/apply-groups", {
       groups: _gruposData.groups,
+      filename: _gruposData.filename,
+      size: _gruposData.size,
     });
     s.className = "pdf-status ok";
     s.textContent = `✅ ${data.updated} produtos atualizados em ${data.groups} grupos.`;

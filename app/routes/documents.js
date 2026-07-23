@@ -1,8 +1,6 @@
 const express = require('express');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
-const path = require('path');
-const fs = require('fs');
 const { getDb, DB_SCHEMA } = require('../db/schema');
 const _s = `"${DB_SCHEMA}".`;
 const { requireAdmin } = require('../middleware/auth');
@@ -11,20 +9,10 @@ const cache = require('../lib/cache');
 
 const router = express.Router();
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, '..', 'uploads');
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-  filename: (_req, file, cb) => {
-    const ts = Date.now();
-    const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-    cb(null, `${ts}_${safe}`);
-  },
-});
-
+// PDFs de importação (fiscal/gerencial/grupos) são só um passo de trânsito: recebidos,
+// parseados e descartados — nunca precisam tocar o disco. memoryStorage evita arquivos órfãos.
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype === 'application/pdf') return cb(null, true);
@@ -62,12 +50,11 @@ router.post('/upload/grupos', requireAdmin, async (req, res) => {
 
   let rawText;
   try {
-    const parsed = await pdfParse(fs.readFileSync(req.file.path));
+    const parsed = await pdfParse(req.file.buffer);
     rawText = parsed.text;
   } catch (err) {
     return res.status(422).json({ error: 'Não foi possível ler o PDF: ' + err.message });
   }
-  try { fs.unlinkSync(req.file.path); } catch (_) {}
 
   const pool = getDb();
   let productSet;
@@ -88,6 +75,8 @@ router.post('/upload/grupos', requireAdmin, async (req, res) => {
     totalNotFound,
     totalParsed:   totalFound + totalNotFound,
     groups,
+    filename: req.file.originalname,
+    size:     req.file.size,
   });
 });
 
@@ -111,7 +100,7 @@ router.post('/upload/:type', requireAdmin, serializeImport(async (req, res) => {
     const { rows } = await pool.query(
       `INSERT INTO ${_s}uploaded_documents (filename, type, size_bytes, uploaded_by)
        VALUES ($1, $2, $3, $4) RETURNING id`,
-      [req.file.filename, type, req.file.size, req.user.username]
+      [req.file.originalname, type, req.file.size, req.user.username]
     );
     documentId = rows[0].id;
   } catch (err) {
@@ -122,12 +111,11 @@ router.post('/upload/:type', requireAdmin, serializeImport(async (req, res) => {
   // 3. Lê e parseia o PDF
   let rawText;
   try {
-    const parsed = await pdfParse(fs.readFileSync(req.file.path));
+    const parsed = await pdfParse(req.file.buffer);
     rawText = parsed.text;
   } catch (err) {
     return res.status(422).json({ error: 'Não foi possível ler o PDF: ' + err.message });
   }
-  try { fs.unlinkSync(req.file.path); } catch (_) {}
 
   // 4. Carrega produtos e extrai dados do PDF
   let productMap, extracted;
@@ -189,7 +177,6 @@ router.post('/upload/:type', requireAdmin, serializeImport(async (req, res) => {
           updated_at      = NOW()
       `, [ids, names, pfs, sfs, spms, ssms, disabled, cats]);
 
-      updated = extracted.filter(i =>  productMap.has(i.productId)).length;
       created = extracted.filter(i => !productMap.has(i.productId)).length;
     } catch (err) {
       console.error('[upload] Erro no bulk upsert:', err.message);
@@ -205,6 +192,10 @@ router.post('/upload/:type', requireAdmin, serializeImport(async (req, res) => {
         return isNaN(prevNum) || prevNum !== newVal;
       })
       .map(i => i.productId);
+
+    // "Atualizados" = produtos que já existiam E cujo valor realmente mudou
+    // (não basta constar no PDF — extracted quase sempre bate 1:1 com o catálogo inteiro)
+    updated = changedIds.filter(id => productMap.has(id)).length;
 
     if (changedIds.length > 0) {
       try {
@@ -264,13 +255,13 @@ router.post('/upload/:type', requireAdmin, serializeImport(async (req, res) => {
     await pool.query(
       `INSERT INTO ${_s}import_history (document_id, type, total_products, updated_products, skipped, status)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [documentId, type, extracted.length, updated, 0, 'success']
+      [documentId, type, extracted.length, updated, created, 'success']
     );
   } catch (err) {
     console.error('[upload] Erro ao atualizar status/histórico:', err.message);
   }
 
-  res.json({ documentId, type, total: extracted.length, updated, status: 'success' });
+  res.json({ documentId, type, total: extracted.length, updated, created, status: 'success' });
 }));
 
 // GET /api/documents/history
@@ -290,48 +281,29 @@ router.get('/history', requireAdmin, async (req, res) => {
   }
 });
 
-// GET /api/documents/rawtext/:id
-router.get('/rawtext/:id', requireAdmin, async (req, res) => {
-  try {
-    const pool = getDb();
-    const { rows } = await pool.query(`SELECT * FROM ${_s}uploaded_documents WHERE id = $1`, [req.params.id]);
-    const doc = rows[0];
-    if (!doc) return res.status(404).json({ error: 'Documento não encontrado.' });
-
-    const filePath = path.join(UPLOAD_DIR, doc.filename);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo não encontrado (deletado após importação).' });
-
-    let parsed;
-    try {
-      parsed = await pdfParse(fs.readFileSync(filePath));
-    } catch (err) {
-      return res.status(422).json({ error: 'Erro ao ler PDF: ' + err.message });
-    }
-
-    const maxLines = Math.min(parseInt(req.query.lines) || 200, 2000);
-    const allLines = parsed.text.split('\n');
-    const lines = allLines.slice(0, maxLines).map((l, i) => ({
-      n: i + 1, raw: l, trimmed: l.trim(), hasNumbers: /\d/.test(l),
-    }));
-
-    res.json({
-      document: { id: doc.id, filename: doc.filename, type: doc.type },
-      totalLines: allLines.length, showing: lines.length, lines,
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-
 // POST /api/documents/apply-groups — aplica as categorias de todos os grupos
 router.post('/apply-groups', requireAdmin, serializeImport(async (req, res) => {
-  const { groups } = req.body || {};
+  const { groups, filename, size } = req.body || {};
   if (!Array.isArray(groups) || !groups.length)
     return res.status(400).json({ error: 'Nenhum grupo enviado.' });
 
   const pool = getDb();
   let updated = 0, groupsApplied = 0;
+
+  // Registra o PDF de grupos (não persistido em disco) para aparecer no histórico
+  let documentId = null;
+  if (filename) {
+    try {
+      const { rows } = await pool.query(
+        `INSERT INTO ${_s}uploaded_documents (filename, type, size_bytes, uploaded_by)
+         VALUES ($1, 'grupos', $2, $3) RETURNING id`,
+        [filename, size || null, req.user.username]
+      );
+      documentId = rows[0].id;
+    } catch (err) {
+      console.error('[apply-groups] Erro ao registrar documento:', err.message);
+    }
+  }
 
   // Carrega estado atual de categoria dos produtos que serão alterados
   const allIds = groups.flatMap(g => (!g.skip && Array.isArray(g.productIds)) ? g.productIds : []);
@@ -442,7 +414,7 @@ router.post('/apply-groups', requireAdmin, serializeImport(async (req, res) => {
     await pool.query(
       `INSERT INTO ${_s}import_history (document_id, type, total_products, updated_products, skipped, status)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [null, 'grupos', totalParsed, updated, notFoundTotal, 'success']
+      [documentId, 'grupos', totalParsed, updated, notFoundTotal, 'success']
     );
   } catch (err) {
     console.error('[apply-groups] Erro ao gravar histórico:', err.message);
