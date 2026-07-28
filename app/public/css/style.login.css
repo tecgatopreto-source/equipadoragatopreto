@@ -1,14 +1,4 @@
-:root {
-  --bg: #fafaf7;
-  --gp-green: #7dd33c;
-  --gp-green-dark: #5fab28;
-  --gp-green-soft: #e9f8d8;
-  --ink: #15171a;
-  --muted: #6b7079;
-  --ink-2: #2a2d33;
-  --border: #e6e8eb;
-  --danger: #d54e4e;
-}
+/* tokens vêm de tokens.css (design system compartilhado) */
 
 *,
 *::before,
@@ -25,23 +15,23 @@ body.login-shell {
   justify-content: center;
   padding: 1rem;
   font-family: "Inter", sans-serif;
-  background: var(--bg);
+  background: var(--color-bg);
   background-image:
     radial-gradient(
       circle at 20% 30%,
-      rgba(125, 211, 60, 0.08),
+      rgba(97, 211, 48, 0.08),
       transparent 50%
     ),
     radial-gradient(
       circle at 80% 70%,
-      rgba(125, 211, 60, 0.05),
+      rgba(97, 211, 48, 0.05),
       transparent 50%
     );
 }
 
 .login-card {
   background: #ffffff;
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border);
   border-radius: 20px;
   padding: 40px 36px;
   box-shadow: 0 4px 14px rgba(15, 17, 20, 0.06);
@@ -62,14 +52,14 @@ body.login-shell {
 .login-title {
   font-size: 22px;
   font-weight: 700;
-  color: var(--ink);
+  color: var(--color-ink);
   text-align: center;
   margin-bottom: 6px;
 }
 
 .login-sub {
   font-size: 14px;
-  color: var(--muted);
+  color: var(--color-muted);
   text-align: center;
   margin-bottom: 28px;
 }
@@ -82,19 +72,19 @@ label {
   display: block;
   font-size: 12px;
   font-weight: 600;
-  color: var(--ink-2);
+  color: var(--color-ink-2);
   margin-bottom: 6px;
 }
 
 input {
   width: 100%;
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border);
   background: #fff;
   border-radius: 8px;
   padding: 9px 12px;
   font-size: 13px;
   font-family: "Inter", sans-serif;
-  color: var(--ink);
+  color: var(--color-ink);
   outline: none;
   transition:
     border-color 0.15s,
@@ -102,8 +92,8 @@ input {
 }
 
 input:focus {
-  border-color: var(--gp-green-dark);
-  box-shadow: 0 0 0 3px var(--gp-green-soft);
+  border-color: var(--color-brand-dark);
+  box-shadow: 0 0 0 3px var(--color-brand-soft);
 }
 
 .error {
@@ -114,7 +104,7 @@ input:focus {
   border: 1px solid rgba(213, 78, 78, 0.28);
   border-radius: 8px;
   padding: 10px 12px;
-  color: var(--danger);
+  color: var(--color-danger);
   font-size: 13px;
   line-height: 1.45;
   margin-bottom: 12px;
@@ -123,7 +113,7 @@ input:focus {
 .btn {
   width: 100%;
   padding: 12px;
-  background: var(--gp-green);
+  background: var(--color-brand);
   color: #ffffff;
   font-weight: 700;
   font-size: 15px;
@@ -135,12 +125,12 @@ input:focus {
 }
 
 .btn:hover {
-  background: var(--gp-green-dark);
+  background: var(--color-brand-dark);
 }
 
 .btn:focus {
   outline: none;
-  box-shadow: 0 0 0 3px var(--gp-green-soft);
+  box-shadow: 0 0 0 3px var(--color-brand-soft);
 }
 
 .btn:disabled {
@@ -153,12 +143,12 @@ input:focus {
   text-align: center;
   margin-top: 20px;
   font-size: 13px;
-  color: var(--muted);
+  color: var(--color-muted);
   text-decoration: none;
 }
 
 .back:hover {
-  color: var(--ink);
+  color: var(--color-ink);
 }
 
 @media (max-width: 480px) {

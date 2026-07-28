@@ -75,6 +75,8 @@ SVG category icons live in `svg/` and are served at `/svg/`. The frontend picks 
 - `product-category-svg.js` — maps product name keywords to SVG filenames in `/svg/`
 - `admin.js`, `conferente.js`, `index.js`, `login.js` — page-specific logic
 
+**Design system (`public/css/tokens.css`)**: tokens compartilhados Gato Preto, linkados em cada HTML antes do CSS específico da página (`style.index.css`, `style.admin.css`, `style.conferente.css`, `style.login.css`). Os 4 arquivos tinham cada um seu próprio `:root` — `style.login.css` usava o template antigo (cor de marca `#7dd33c`, já corrigida) e os outros 3 usavam uma paleta neutra mais "quente" (`#f5f5f5`/`#1a1814`), que foi unificada com a paleta cinza compartilhada por decisão explícita (antes era `#f5f5f5`/`#1a1814`/`#e8e6e1` etc., visual do catálogo mudou para bater com os outros 5 sistemas). Cores semânticas específicas do catálogo (`--green`, `--red`, `--amber`, `--col-fiscal`, `--col-mgmt`, `--col-real`, `--accent-dark`, `--safe-bottom`/`--safe-top`) continuam locais, sem equivalente na paleta compartilhada.
+
 ## Authentication
 
 **SSO com a Central de Sistemas:** `POST /api/auth/sso` recebe `{ access_token }` (da sessão Supabase compartilhada `gp_session` que a Central e os demais sistemas guardam no localStorage — todos na mesma origem em produção), valida o token via `GET /auth/v1/user`, aplica o mesmo gate de `perfis` do login por senha e emite o mesmo cookie `gp_auth`. O client `public/js/login.js` tenta esse fluxo automaticamente ao abrir a tela de login; se falhar, o formulário de senha é o fallback.

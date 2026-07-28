@@ -1,0 +1,80 @@
+/*
+  Gato Preto — Design Tokens
+  Fonte única de verdade para cor, tipografia, espaçamento, raio e sombra
+  usados em todos os sistemas (GestaoSistemas, Financeiro, Precificacao,
+  Sistema_bonificacao, Controle_Produtos, Produtos/equipadoragatopreto).
+
+  Uso: carregar este arquivo ANTES de base.css e de qualquer CSS do sistema.
+  Nenhuma regra aqui gera output visual sozinha — só declara custom properties.
+*/
+
+:root {
+  /* ── Marca ── */
+  --color-brand:        #61D330;
+  --color-brand-dark:   #4CAE1F;
+  --color-brand-darker: #3D8E18;
+  --color-brand-soft:   #E9F8DD;
+  --color-brand-soft-2: #F5FBEF;
+
+  /* ── Neutros / texto ── */
+  --color-ink:      #15171A; /* texto primário, títulos */
+  --color-ink-2:    #2A2D33; /* texto secundário forte (labels, nomes) */
+  --color-muted:    #6B7079; /* texto secundário */
+  --color-muted-2:  #9AA0A8; /* texto terciário, placeholders, ícones inativos */
+
+  /* ── Superfícies ── */
+  --color-bg:        #FAFAF7; /* fundo da página */
+  --color-surface:   #FFFFFF; /* cards, painéis, modais */
+  --color-surface-2: #F4F5F3; /* hover sutil, listras de tabela */
+  --color-border:    #E6E8EB;
+  --color-border-2:  #EFF1F3; /* divisórias mais discretas */
+
+  /* ── Semânticas ── */
+  --color-danger:      #D54E4E;
+  --color-danger-soft: #F8E0E0;
+  --color-warn:        #E08423;
+  --color-warn-soft:   #FBEFD9;
+  --color-info:        #2B8FE0;
+  --color-info-soft:   #DCEDFA;
+  --color-success:      var(--color-brand-dark);
+  --color-success-soft: var(--color-brand-soft);
+  --color-purple:      #9B6DFF; /* acento extra p/ categorização (ex: gráficos, tags) */
+  --color-purple-soft: #ECE4FF;
+
+  /* ── Tipografia ── */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  --text-xs:   12px;
+  --text-sm:   13px;
+  --text-base: 14px;
+  --text-md:   15px;
+  --text-lg:   18px;
+  --text-xl:   22px;
+  --text-2xl:  28px;
+
+  /* ── Espaçamento (múltiplos de 4px) ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* ── Raio ── */
+  --radius-sm:   6px;
+  --radius:      10px;
+  --radius-lg:   14px;
+  --radius-xl:   20px;
+  --radius-full: 999px;
+
+  /* ── Sombra ── */
+  --shadow-sm: 0 1px 2px rgba(15, 17, 20, .04);
+  --shadow:    0 4px 14px rgba(15, 17, 20, .06);
+  --shadow-lg: 0 20px 60px rgba(15, 17, 20, .18);
+
+  /* ── Transição ── */
+  --transition-fast: 0.15s ease;
+  --transition:       0.18s ease;
+}
