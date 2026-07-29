@@ -37,6 +37,18 @@ function calcStatus(stockFiscal, stockMgmt) {
   return (stockFiscal == stockMgmt) ? 0 : 1;
 }
 
+// Monta uma tsquery "termo1:* & termo2:* & ..." (prefixo, sem acento) a partir do texto buscado.
+// Precisa espelhar a normalização usada na coluna gerada search_vector_name (normalize NFD + strip diacritics).
+function ftsPrefixQuery(text) {
+  const words = text
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .split(/\s+/)
+    .map(w => w.replace(/[^a-z0-9]/g, ''))
+    .filter(Boolean);
+  return words.length ? words.map(w => `${w}:*`).join(' & ') : null;
+}
+
 const TTL_STATS      = 2  * 60 * 1000;
 const TTL_CATEGORIES = 10 * 60 * 1000;
 const TTL_PRODUCTS   = 60 * 1000;
@@ -110,16 +122,29 @@ router.get('/', async (req, res) => {
 
   const params = [];
   const conditions = [];
+  let nameQueryParamIdx = null;
 
   if (code_q.trim()) {
     params.push('%' + code_q.trim().toLowerCase() + '%');
     conditions.push(`p.id ILIKE $${params.length}`);
   } else if (name_q.trim()) {
-    params.push('%' + name_q.trim().toUpperCase() + '%');
-    conditions.push(`upper(p.name) LIKE $${params.length}`);
+    const tsq = ftsPrefixQuery(name_q);
+    if (tsq) {
+      params.push(tsq);
+      nameQueryParamIdx = params.length;
+      conditions.push(`p.search_vector_name @@ to_tsquery('simple', $${nameQueryParamIdx})`);
+    }
   } else if (q.trim()) {
-    params.push('%' + q.trim().toUpperCase() + '%');
-    conditions.push(`(upper(p.name) LIKE $${params.length} OR p.id ILIKE $${params.length})`);
+    params.push('%' + q.trim().toLowerCase() + '%');
+    const codeParamIdx = params.length;
+    const tsq = ftsPrefixQuery(q);
+    if (tsq) {
+      params.push(tsq);
+      nameQueryParamIdx = params.length;
+      conditions.push(`(p.search_vector_name @@ to_tsquery('simple', $${nameQueryParamIdx}) OR p.id ILIKE $${codeParamIdx})`);
+    } else {
+      conditions.push(`p.id ILIKE $${codeParamIdx}`);
+    }
   }
   if (status !== 'T') {
     params.push(parseInt(status));
@@ -148,6 +173,8 @@ router.get('/', async (req, res) => {
   if (code_q.trim()) {
     params.push(code_q.trim().toLowerCase());
     orderBy = `CASE WHEN LOWER(p.id) = $${params.length} THEN 0 ELSE 1 END, ${sortCol} ${sortDir}`;
+  } else if (nameQueryParamIdx) {
+    orderBy = `ts_rank(p.search_vector_name, to_tsquery('simple', $${nameQueryParamIdx})) DESC, ${sortCol} ${sortDir}`;
   } else {
     orderBy = `${sortCol} ${sortDir}`;
   }
