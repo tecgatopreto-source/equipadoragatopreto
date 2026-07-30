@@ -132,7 +132,7 @@ router.get('/', async (req, res) => {
     if (tsq) {
       params.push(tsq);
       nameQueryParamIdx = params.length;
-      conditions.push(`p.search_vector_name @@ to_tsquery('simple', $${nameQueryParamIdx})`);
+      conditions.push(`p.search_vector_name @@ to_tsquery('portuguese', $${nameQueryParamIdx})`);
     }
   } else if (q.trim()) {
     params.push('%' + q.trim().toLowerCase() + '%');
@@ -141,7 +141,7 @@ router.get('/', async (req, res) => {
     if (tsq) {
       params.push(tsq);
       nameQueryParamIdx = params.length;
-      conditions.push(`(p.search_vector_name @@ to_tsquery('simple', $${nameQueryParamIdx}) OR p.id ILIKE $${codeParamIdx})`);
+      conditions.push(`(p.search_vector_name @@ to_tsquery('portuguese', $${nameQueryParamIdx}) OR p.id ILIKE $${codeParamIdx})`);
     } else {
       conditions.push(`p.id ILIKE $${codeParamIdx}`);
     }
@@ -174,7 +174,7 @@ router.get('/', async (req, res) => {
     params.push(code_q.trim().toLowerCase());
     orderBy = `CASE WHEN LOWER(p.id) = $${params.length} THEN 0 ELSE 1 END, ${sortCol} ${sortDir}`;
   } else if (nameQueryParamIdx) {
-    orderBy = `ts_rank(p.search_vector_name, to_tsquery('simple', $${nameQueryParamIdx})) DESC, ${sortCol} ${sortDir}`;
+    orderBy = `ts_rank(p.search_vector_name, to_tsquery('portuguese', $${nameQueryParamIdx})) DESC, ${sortCol} ${sortDir}`;
   } else {
     orderBy = `${sortCol} ${sortDir}`;
   }
