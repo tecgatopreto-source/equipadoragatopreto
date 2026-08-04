@@ -44,7 +44,10 @@ function ftsPrefixQuery(text) {
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .split(/\s+/)
-    .map(w => w.replace(/[^a-z0-9]/g, ''))
+    // mantém '.', '/' e '-' (ex.: "1.4", "04/11"): to_tsquery usa o mesmo
+    // tokenizador do to_tsvector e re-separa isso corretamente; removê-los
+    // aqui faz "1.4" virar "14", que nunca casa com o lexema '1.4' salvo.
+    .map(w => w.replace(/[^a-z0-9./-]/g, ''))
     .filter(Boolean);
   return words.length ? words.map(w => `${w}:*`).join(' & ') : null;
 }
