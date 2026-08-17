@@ -34,6 +34,9 @@ const loginHtml      = renderHtml('login.html');
 app.use(require('cookie-parser')());
 app.use(express.json({ limit: '2mb' }));
 
+const { mutationLimiter } = require('./middleware/rateLimit');
+app.use('/api', mutationLimiter);
+
 // Arquivos estáticos na raiz (.html excluídos — servidos pelas rotas SPA com APP_BASE injetado)
 const staticPublic = express.static(path.join(__dirname, 'public'), { index: false });
 app.use((req, res, next) => /\.html?$/i.test(req.path) ? next() : staticPublic(req, res, next));

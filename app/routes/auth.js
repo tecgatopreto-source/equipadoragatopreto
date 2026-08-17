@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const jwt    = require('jsonwebtoken');
 const { JWT_SECRET, COOKIE_NAME, COOKIE_OPTS } = require('../middleware/auth');
+const { loginLimiter } = require('../middleware/rateLimit');
 
 const SUPABASE_URL      = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
@@ -19,7 +20,7 @@ async function supabaseLogout(accessToken) {
 }
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password)
     return res.status(400).json({ error: 'E-mail e senha são obrigatórios' });
@@ -81,7 +82,7 @@ router.post('/login', async (req, res) => {
 // validado no Supabase, o gate de perfis é o mesmo do login por senha e o
 // cookie gp_auth emitido é idêntico. Se qualquer etapa falhar, o cliente cai
 // no formulário de login normal.
-router.post('/sso', async (req, res) => {
+router.post('/sso', loginLimiter, async (req, res) => {
   const { access_token } = req.body || {};
   if (!access_token)
     return res.status(400).json({ error: 'access_token é obrigatório' });
