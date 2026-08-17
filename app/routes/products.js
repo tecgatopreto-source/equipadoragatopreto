@@ -604,7 +604,7 @@ router.delete('/:id', requireAdmin, async (req, res) => {
 });
 
 // ── POST /api/products/:id/images/upload  (multipart file) ────────────────
-router.post('/:id/images/upload', imgUpload.single('image'), async (req, res) => {
+router.post('/:id/images/upload', requireAdmin, imgUpload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
   try {
     const pool = getDb();
@@ -662,7 +662,7 @@ function isValidImageUrl(url) {
 }
 
 // ── POST /api/products/:id/images ─────────────────────────────────────────
-router.post('/:id/images', async (req, res) => {
+router.post('/:id/images', requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
     const { url, is_pinned = 0, is_manual = 0 } = req.body;
@@ -693,7 +693,7 @@ router.post('/:id/images', async (req, res) => {
 });
 
 // ── PUT /api/products/:id/images/:imgId/pin ────────────────────────────────
-router.put('/:id/images/:imgId/pin', async (req, res) => {
+router.put('/:id/images/:imgId/pin', requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
     await pool.query(`UPDATE ${_s}product_images SET is_pinned=0 WHERE product_id=$1`, [req.params.id]);
@@ -710,7 +710,7 @@ router.put('/:id/images/:imgId/pin', async (req, res) => {
 });
 
 // ── DELETE /api/products/:id/images/:imgId ────────────────────────────────
-router.delete('/:id/images/:imgId', async (req, res) => {
+router.delete('/:id/images/:imgId', requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
     const { rows: before } = await pool.query(
@@ -738,7 +738,7 @@ router.delete('/:id/images/:imgId', async (req, res) => {
 });
 
 // ── DELETE /api/products/:id/images ───────────────────────────────────────
-router.delete('/:id/images', async (req, res) => {
+router.delete('/:id/images', requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
     await pool.query(`DELETE FROM ${_s}product_images WHERE product_id=$1`, [req.params.id]);
