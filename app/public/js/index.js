@@ -165,6 +165,10 @@ async function fetchProducts(page = 1, reset = false) {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const fmt = n => n != null ? 'R$ ' + Number(n).toFixed(2).replace('.', ',') : '—';
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 function badge(s) {
   if (s === 0) return '<span class="badge badge-eq">Igual</span>';
   if (s === 1) return '<span class="badge badge-diff">Divergente</span>';
@@ -183,16 +187,16 @@ function renderCards(products) {
     div.innerHTML = `
       <div class="card-img">
         ${p.pinned_img
-          ? `<img class="ci-photo" data-src="${p.pinned_img}" alt="" loading="lazy">`
+          ? `<img class="ci-photo" data-src="${escapeHtml(p.pinned_img)}" alt="" loading="lazy">`
           : getCategoryPlaceholder(p.name, p.categoria, p.is_disabled)}
         <div class="card-ref">#${p.id}</div>
       </div>
       <div class="card-body">
         <div class="card-code">
           <span>Ref. ${p.id}</span>
-          ${p.categoria ? `<span class="card-cat">${p.categoria}</span>` : ''}
+          ${p.categoria ? `<span class="card-cat">${escapeHtml(p.categoria)}</span>` : ''}
         </div>
-        <div class="card-name">${p.name}</div>
+        <div class="card-name">${escapeHtml(p.name)}</div>
         <div class="card-footer">
           <div class="card-price">${fmt(p.price_fiscal)}</div>
           ${badge(p.status)}

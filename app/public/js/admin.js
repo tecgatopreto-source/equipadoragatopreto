@@ -1,5 +1,9 @@
 // ── Auth guard ─────────────────────────────────────────────────────────────
 const BASE = window.APP_BASE || "";
+function escapeHtml(str) {
+  if (str == null) return "";
+  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
 const user = JSON.parse(localStorage.getItem("gp_user") || "null");
 if (!user || user.role !== "admin") {
   location.href = BASE + "/login.html";
@@ -396,7 +400,7 @@ async function loadProducts(page) {
         <tr>
           <td style="font-weight:600;font-size:.72rem">${p.id}</td>
           <td>
-            ${p.name}
+            ${escapeHtml(p.name)}
             ${p.is_disabled ? '<span class="badge-disabled" style="margin-left:.4rem">Desativado</span>' : ""}
           </td>
           <td class="col-fiscal">${fmt(p.price_fiscal)}</td>
@@ -413,7 +417,7 @@ async function loadProducts(page) {
           <td>
             <div class="td-actions">
               <button class="btn-sm" onclick="editProduct('${p.id}')">Editar</button>
-              <button class="btn-sm btn-danger" onclick="deleteProduct('${p.id}','${p.name.replace(/'/g, "\\'")}')">Del</button>
+              <button class="btn-sm btn-danger" onclick="deleteProduct('${p.id}','${escapeHtml(p.name.replace(/\\/g, "\\\\").replace(/'/g, "\\'"))}')">Del</button>
             </div>
           </td>
         </tr>
@@ -855,13 +859,13 @@ async function loadReport() {
       const catChanged    = r.prev_categoria !== r.categoria && r.last_categoria_changed_at != null && r.last_categoria_changed_at === r.changed_at;
       const catBadge = r.categoria
         ? catChanged
-          ? `<span style="background:rgba(181,98,10,.12);color:var(--amber);padding:.15rem .45rem;border-radius:4px;white-space:nowrap;font-weight:700">${r.categoria}</span>`
-          : `<span style="background:#ebebeb;color:#666;padding:.15rem .45rem;border-radius:4px;white-space:nowrap">${r.categoria}</span>`
+          ? `<span style="background:rgba(181,98,10,.12);color:var(--amber);padding:.15rem .45rem;border-radius:4px;white-space:nowrap;font-weight:700">${escapeHtml(r.categoria)}</span>`
+          : `<span style="background:#ebebeb;color:#666;padding:.15rem .45rem;border-radius:4px;white-space:nowrap">${escapeHtml(r.categoria)}</span>`
         : '<span style="color:var(--muted2)">—</span>';
       return `
     <tr>
       <td style="font-weight:600;font-size:.72rem">${r.id}</td>
-      <td>${r.name}</td>
+      <td>${escapeHtml(r.name)}</td>
       <td style="font-size:.7rem">${catBadge}</td>
       <td>${cellDiff(fiscalChanged, r.stock_fiscal, r.prev_stock_fiscal)}</td>
       <td>${cellDiff(mgmtChanged, r.stock_mgmt, r.prev_stock_mgmt)}</td>
@@ -1059,7 +1063,7 @@ async function loadDeactivate() {
         return `
       <tr>
         <td style="font-weight:600;font-size:.72rem">${r.id}</td>
-        <td title="${r.name_full}" style="font-size:.8rem;white-space:nowrap">${r.name_abbr}${hasEllipsis ? "…" : ""}</td>
+        <td title="${escapeHtml(r.name_full)}" style="font-size:.8rem;white-space:nowrap">${escapeHtml(r.name_abbr)}${hasEllipsis ? "…" : ""}</td>
         <td>${fmtN(r.stock_fiscal)}</td>
         <td>${fmtN(r.stock_mgmt)}</td>
         <td style="border-left:2px solid var(--accent);font-weight:700">${fmtN(r.stock_real)}</td>
@@ -1355,7 +1359,7 @@ async function loadImportHistory() {
         <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);color:var(--green);font-weight:700;font-size:.72rem">${h.updated_products ?? "—"}</td>
         <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);color:var(--muted);font-size:.72rem">${h.skipped ?? "—"}</td>
         <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);color:${statusColor};font-weight:700;font-size:.72rem">${statusLabel}</td>
-        <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);color:var(--muted);font-size:.68rem;max-width:220px;overflow-wrap:anywhere">${h.filename || "—"}</td>
+        <td style="padding:.6rem 1rem;border-bottom:1px solid var(--border);color:var(--muted);font-size:.68rem;max-width:220px;overflow-wrap:anywhere">${escapeHtml(h.filename) || "—"}</td>
       </tr>`;
       })
       .join("");
@@ -1428,7 +1432,7 @@ async function processGruposPdf(file) {
           .map(
             (g) => `<tr style="${g.skip ? "opacity:.45" : ""}">
           <td style="padding:.35rem .75rem;border-bottom:1px solid var(--border)">
-            ${g.name}
+            ${escapeHtml(g.name)}
             ${g.skip ? ' <em style="color:var(--muted)">(categoria → null, reativa)</em>' : ""}
             ${g.disabled ? ' <em style="color:var(--amber)">(is_disabled = 1, categoria → null)</em>' : ""}
           </td>

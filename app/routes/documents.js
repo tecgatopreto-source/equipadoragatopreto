@@ -19,12 +19,17 @@ const upload = multer({
   },
 });
 
-// Wrapper para multer v2 (API interna async — erros precisam ser capturados explicitamente)
+// Wrapper para multer v2 (API interna async — erros precisam ser capturados explicitamente).
+// Content-Type do multipart é informado pelo cliente e pode ser forjado, então também
+// confere os magic bytes do arquivo (assinatura "%PDF-") antes de liberar pro parser.
 function runUpload(req, res) {
   return new Promise((resolve, reject) => {
     upload.single("pdf")(req, res, (err) => {
-      if (err) reject(err);
-      else resolve();
+      if (err) return reject(err);
+      if (req.file && req.file.buffer.slice(0, 5).toString("ascii") !== "%PDF-") {
+        return reject(new Error("Arquivo não é um PDF válido."));
+      }
+      resolve();
     });
   });
 }

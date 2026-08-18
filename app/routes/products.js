@@ -23,10 +23,50 @@ const imgUpload = multer({
   }),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
+    // Content-Type é informado pelo cliente e pode ser forjado — esse filtro é só uma
+    // rejeição rápida (SVG explicitamente barrado, pois pode conter <script>). A validação
+    // real do conteúdo (magic bytes) acontece depois de gravado, em validateUploadedImage.
+    if (file.mimetype === 'image/svg+xml') return cb(new Error('SVG não é permitido.'));
     if (file.mimetype.startsWith('image/')) return cb(null, true);
     cb(new Error('Apenas imagens são aceitas.'));
   },
 });
+
+// Assinaturas binárias (magic bytes) dos formatos de imagem aceitos — a única fonte
+// confiável de tipo, já que o Content-Type do multipart é controlado pelo cliente.
+const IMAGE_SIGNATURES = [
+  { ext: '.jpg',  check: b => b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF },
+  { ext: '.png',  check: b => b.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])) },
+  { ext: '.gif',  check: b => b.slice(0, 4).toString('ascii') === 'GIF8' },
+  { ext: '.webp', check: b => b.slice(0, 4).toString('ascii') === 'RIFF' && b.slice(8, 12).toString('ascii') === 'WEBP' },
+];
+
+// Confirma que o arquivo já gravado em disco é de fato uma imagem suportada (não confia na
+// extensão do originalname nem no Content-Type). Renomeia para a extensão real detectada,
+// evitando que um arquivo com conteúdo HTML/script salvo com extensão de imagem forjada
+// (ou vice-versa) seja servido pelo express.static com um Content-Type incoerente.
+// Deleta e retorna null se o conteúdo não bater com nenhum formato de imagem conhecido.
+function validateUploadedImage(filePath) {
+  const header = Buffer.alloc(16);
+  let bytesRead = 0;
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    bytesRead = fs.readSync(fd, header, 0, 16, 0);
+  } finally {
+    fs.closeSync(fd);
+  }
+  const sig = bytesRead >= 12 && IMAGE_SIGNATURES.find(s => s.check(header));
+  if (!sig) {
+    try { fs.unlinkSync(filePath); } catch {}
+    return null;
+  }
+  if (path.extname(filePath).toLowerCase() !== sig.ext) {
+    const renamed = filePath.slice(0, -path.extname(filePath).length) + sig.ext;
+    fs.renameSync(filePath, renamed);
+    return renamed;
+  }
+  return filePath;
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 //  Status calculation
@@ -606,11 +646,16 @@ router.delete('/:id', requireAdmin, async (req, res) => {
 // ── POST /api/products/:id/images/upload  (multipart file) ────────────────
 router.post('/:id/images/upload', requireAdmin, imgUpload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+  const validPath = validateUploadedImage(req.file.path);
+  if (!validPath) {
+    return res.status(400).json({ error: 'Arquivo não é uma imagem válida (jpg, png, gif ou webp).' });
+  }
+  req.file.filename = path.basename(validPath);
   try {
     const pool = getDb();
     const { rows } = await pool.query(`SELECT id FROM ${_s}products WHERE id = $1`, [req.params.id]);
     if (!rows[0]) {
-      try { fs.unlinkSync(req.file.path); } catch {}
+      try { fs.unlinkSync(validPath); } catch {}
       return res.status(404).json({ error: 'Produto não encontrado.' });
     }
     const url = `/uploads/product-images/${req.file.filename}`;
@@ -618,7 +663,7 @@ router.post('/:id/images/upload', requireAdmin, imgUpload.single('image'), async
 
     const { rows: countRows } = await pool.query(`SELECT COUNT(*) FROM ${_s}product_images WHERE product_id=$1`, [req.params.id]);
     if (parseInt(countRows[0].count) >= 4) {
-      try { fs.unlinkSync(req.file.path); } catch {}
+      try { fs.unlinkSync(validPath); } catch {}
       return res.status(400).json({ error: 'Limite de 4 imagens por produto atingido' });
     }
 
@@ -750,8 +795,8 @@ router.delete('/:id/images', requireAdmin, async (req, res) => {
 });
 
 // ── GET /api/products/:id/search-images ──────────────────────────────────
-// Sem ?fresh=1 → retorna cache (se existir) ou busca+salva automaticamente.
-// Com ?fresh=1  → busca sempre, retorna candidatas SEM salvar (requer auth).
+// Sem ?fresh=1 → retorna cache (se existir) ou busca+salva automaticamente (requer admin, grava no banco).
+// Com ?fresh=1  → busca sempre, retorna candidatas SEM salvar (público, só leitura).
 const _searching = new Set();
 
 router.get('/:id/search-images', async (req, res) => {
@@ -773,7 +818,12 @@ router.get('/:id/search-images', async (req, res) => {
     }
   }
 
-  // Modo auto-save: cache-first, depois busca e persiste
+  // Modo auto-save: grava no banco — exige admin
+  return requireAdmin(req, res, () => _autoSaveSearchImages(req, res));
+});
+
+async function _autoSaveSearchImages(req, res) {
+  const id = req.params.id;
   try {
     const pool = getDb();
     const cached = await pool.query(
@@ -800,6 +850,6 @@ router.get('/:id/search-images', async (req, res) => {
     _searching.delete(req.params.id);
     res.status(502).json({ error: err.message, source: 'error' });
   }
-});
+}
 
 module.exports = router;
