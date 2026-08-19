@@ -8,7 +8,10 @@ const COOKIE_OPTS = {
   httpOnly: true,
   sameSite: 'lax',
   maxAge: COOKIE_MAX_AGE,
-  secure: process.env.NODE_ENV === 'production',
+  // Fixo em false: produção ainda roda em HTTP puro (sem TLS/domínio configurado).
+  // secure:true com NODE_ENV=production faz o navegador recusar o cookie nessa
+  // condição. Pendência de segurança: religar quando HTTPS estiver disponível.
+  secure: false,
 };
 
 function _refreshCookie(res, payload) {
