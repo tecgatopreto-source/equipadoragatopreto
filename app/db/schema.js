@@ -26,7 +26,11 @@ async function initDb() {
     user: decodeURIComponent(u.username),
     password: decodeURIComponent(u.password),
     database: u.pathname.slice(1),
-    ssl: { rejectUnauthorized: process.env.NODE_ENV === 'production', servername: u.hostname },
+    // rejectUnauthorized fixo em false: o pooler do Supabase apresenta uma cadeia
+    // que o Node rejeita com SELF_SIGNED_CERT_IN_CHAIN mesmo sendo uma conexão
+    // legítima (ca-certificates do SO já atualizado, não resolve). Pendência de
+    // segurança: investigar/pinar o CA certo para religar validação estrita.
+    ssl: { rejectUnauthorized: false, servername: u.hostname },
     max: 20,
     idleTimeoutMillis: 60000,
     connectionTimeoutMillis: 5000,
