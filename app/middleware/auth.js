@@ -18,7 +18,7 @@ function _refreshCookie(res, payload) {
   const newToken = jwt.sign(
     { id: payload.id, username: payload.username, role: payload.role },
     JWT_SECRET,
-    { expiresIn: '12h' }
+    { expiresIn: '12h', algorithm: 'HS256' }
   );
   res.cookie(COOKIE_NAME, newToken, COOKIE_OPTS);
 }
@@ -28,7 +28,7 @@ function authenticate(req, res, next) {
   if (!token) return res.status(401).json({ error: 'Token não fornecido' });
 
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
+    req.user = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
     _refreshCookie(res, req.user); // sliding window
     next();
   } catch {

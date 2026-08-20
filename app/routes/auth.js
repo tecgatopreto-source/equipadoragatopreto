@@ -65,7 +65,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     const token = jwt.sign(
       { id: u.id, username: u.email, role },
       JWT_SECRET,
-      { expiresIn: '12h' }
+      { expiresIn: '12h', algorithm: 'HS256' }
     );
 
     res.cookie(COOKIE_NAME, token, COOKIE_OPTS);
@@ -118,7 +118,7 @@ router.post('/sso', loginLimiter, async (req, res) => {
     const token = jwt.sign(
       { id: u.id, username: u.email, role },
       JWT_SECRET,
-      { expiresIn: '12h' }
+      { expiresIn: '12h', algorithm: 'HS256' }
     );
 
     res.cookie(COOKIE_NAME, token, COOKIE_OPTS);

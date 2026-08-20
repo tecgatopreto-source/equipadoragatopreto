@@ -12,6 +12,11 @@ const jwt = require('jsonwebtoken');
 });
 
 const app = express();
+// Roda atrás de 1 proxy reverso (Nginx, mesmo host) — "1" faz o Express confiar
+// só no X-Forwarded-For/X-Forwarded-Proto desse hop, não da cadeia inteira.
+// Sem isso, req.ip sempre resolve pro IP do Nginx (127.0.0.1), enfraquecendo
+// o rate-limit por IP em middleware/rateLimit.js.
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
 
 // BASE_PATH é usado APENAS para injetar window.APP_BASE no HTML.
@@ -69,7 +74,7 @@ function requireAuthPage(req, res, next) {
   const token = req.cookies && req.cookies['gp_auth'];
   if (!token) return res.redirect(BASE + '/login');
   try {
-    jwt.verify(token, process.env.JWT_SECRET);
+    jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     next();
   } catch {
     res.clearCookie('gp_auth');

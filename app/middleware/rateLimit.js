@@ -9,7 +9,7 @@ function _userOrIpKey(req) {
   const token = req.cookies && req.cookies[COOKIE_NAME];
   if (token) {
     try {
-      const payload = jwt.verify(token, JWT_SECRET);
+      const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
       if (payload && payload.id) return `user:${payload.id}`;
     } catch { /* token ausente/expirado: cai pro IP abaixo */ }
   }
