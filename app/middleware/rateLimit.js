@@ -40,4 +40,18 @@ const loginLimiter = rateLimit({
   message: { error: 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.' },
 });
 
-module.exports = { mutationLimiter, loginLimiter };
+// Limiter dedicado pra busca de imagens (?fresh=1 em /search-images) — rota
+// pública sem auth que dispara busca real (Google CSE pago, se configurado,
+// ou scraping do Bing). Chave só por IP: o custo é por origem de rede, não
+// por usuário (a rota nem exige login). Bem mais apertado que o mutationLimiter
+// geral porque cada chamada tem custo real, não é só escrita no banco (SEC-002).
+const imageSearchLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 8,
+  keyGenerator: (req) => rateLimit.ipKeyGenerator(req.ip),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas buscas de imagem em pouco tempo. Aguarde um momento e tente novamente.' },
+});
+
+module.exports = { mutationLimiter, loginLimiter, imageSearchLimiter };

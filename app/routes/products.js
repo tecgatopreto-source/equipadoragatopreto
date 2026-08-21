@@ -6,6 +6,13 @@ const { getDb, DB_SCHEMA } = require('../db/schema');
 const _s = `"${DB_SCHEMA}".`;
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const cache = require('../lib/cache');
+const { imageSearchLimiter } = require('../middleware/rateLimit');
+
+// Só aplica o rate-limit apertado no modo ?fresh=1 (público, custo real por
+// chamada) — o modo auto-save já é protegido por requireAdmin logo abaixo.
+function _freshOnly(mw) {
+  return (req, res, next) => (req.query.fresh === '1' ? mw(req, res, next) : next());
+}
 
 const PROD_IMG_DIR = path.join(
   process.env.UPLOAD_DIR || path.join(__dirname, '..', 'uploads'),
@@ -799,19 +806,24 @@ router.delete('/:id/images', requireAdmin, async (req, res) => {
 // Com ?fresh=1  → busca sempre, retorna candidatas SEM salvar (público, só leitura).
 const _searching = new Set();
 
-router.get('/:id/search-images', async (req, res) => {
+router.get('/:id/search-images', _freshOnly(imageSearchLimiter), async (req, res) => {
   const id    = req.params.id;
   const fresh = req.query.fresh === '1';
 
   // Modo candidatas: público — só leitura, não salva nada
   if (fresh) {
     try {
+      const cacheKey = `fresh-search:${id}`;
+      const cached = cache.get(cacheKey);
+      if (cached) return res.json({ images: cached.map(url => ({ url })), source: 'fresh-cached' });
+
       const pool = getDb();
       const prod = await pool.query(`SELECT id, name FROM ${_s}products WHERE id=$1`, [id]);
       if (!prod.rows.length) return res.status(404).json({ error: 'Produto não encontrado' });
 
       const { searchImages, buildQuery } = require('../lib/image-search');
       const urls = await searchImages(buildQuery(prod.rows[0]));
+      cache.set(cacheKey, urls, 5 * 60 * 1000);
       return res.json({ images: urls.map(url => ({ url })), source: 'fresh' });
     } catch (err) {
       return res.status(502).json({ error: err.message, source: 'error' });
