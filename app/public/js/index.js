@@ -309,7 +309,6 @@ function buildThumbs() {
   if (!modalImages.length) {
     strip.innerHTML = '<span class="no-imgs">Nenhuma imagem encontrada</span>';
     document.getElementById('img-tip').style.display = 'none';
-    document.getElementById('mp-nav');
     document.getElementById('mp-prev').style.display = 'none';
     document.getElementById('mp-next').style.display = 'none';
     document.getElementById('mp-counter').style.display = 'none';
@@ -915,5 +914,43 @@ window.addEventListener('pageshow', e => {
   if (e.persisted) {
     loading = false;
     fetchProducts(1, true);
+  }
+});
+
+const header = document.querySelector("header");
+const catalog = document.querySelector(".catalog");
+
+let lastScrollTop = 0;
+let ticking = false;
+
+function handleHeaderScroll() {
+  const currentScroll = catalog.scrollTop;
+
+  // Não esconde no topo
+  if (currentScroll <= 10) {
+    header.classList.remove("header-hidden");
+    lastScrollTop = currentScroll;
+    ticking = false;
+    return;
+  }
+
+  // Rolando para baixo
+  if (currentScroll > lastScrollTop) {
+    header.classList.add("header-hidden");
+  }
+
+  // Rolando para cima
+  else if (currentScroll < lastScrollTop) {
+    header.classList.remove("header-hidden");
+  }
+
+  lastScrollTop = currentScroll;
+  ticking = false;
+}
+
+catalog.addEventListener("scroll", () => {
+  if (!ticking) {
+    window.requestAnimationFrame(handleHeaderScroll);
+    ticking = true;
   }
 });

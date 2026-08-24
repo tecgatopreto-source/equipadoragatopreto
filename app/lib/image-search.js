@@ -142,4 +142,4 @@ async function searchAndSaveImages(product) {
   } catch { return []; }
 }
 
-module.exports = { searchImages, searchAndSaveImages, buildQuery, _cleanProductName };
+module.exports = { searchImages, searchAndSaveImages, buildQuery };

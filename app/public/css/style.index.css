@@ -29,9 +29,18 @@ header {
   border-bottom: 1px solid var(--color-border-2);
   position: sticky;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 100;
   flex-shrink: 0;
+
+  transform: translateY(0);
+  transition: transform 0.25s ease;
+
+  
 }
+
+
 .header-top {
   display: flex;
   align-items: center;
@@ -1306,12 +1315,38 @@ header {
 
 /* ── Mobile ── */
 @media (max-width: 540px) {
+  header {
+    position: fixed;
+    transition: transform 0.25s ease;
+  }
+
+  header.header-hidden {
+    transform: translateY(-100%);
+  }
   /* Header: logo left / button right in one row */
   .header-top {
     padding: 0.5rem 1rem;
   }
   .logo-sub {
     display: none;
+  }
+
+  .header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+  }
+
+  #auth-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  #auth-actions .btn-admin, #auth-actions .btn-logout {
+   text-align: center;
+   width: 100%;
   }
 
   /* Search stacks above filters */
@@ -1334,6 +1369,8 @@ header {
   .filters {
     flex-direction: column;
     gap: 0.35rem;
+    align-items: stretch;
+    justify-content: space-between;
   }
   .cat-select {
     max-width: none;
@@ -1344,6 +1381,16 @@ header {
     flex-wrap: nowrap;
     -webkit-overflow-scrolling: touch;
     padding-bottom: 2px;
+    justify-content: space-between;
+
+  }
+
+  #capota-subfilter{
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: .3rem;
+    flex-wrap: wrap;
   }
 
   /* Touch-friendly filter buttons */
@@ -1359,9 +1406,9 @@ header {
     padding: 0.75rem 0 3rem;
   }
 
-  /* 2-column product grid */
+  /* 1-column product grid */
   .grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(1, 1fr);
     gap: 1px;
   }
   .card-body {
