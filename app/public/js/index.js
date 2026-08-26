@@ -320,7 +320,7 @@ function buildThumbs() {
     t.className = 'thumb' + (img.is_pinned ? ' pinned' : '') + (i === 0 ? ' sel' : '');
     t.dataset.index = i;
     t.innerHTML = `
-      <img src="${img.url}" alt="" loading="lazy">
+      <img src="${escapeHtml(img.url)}" alt="" loading="lazy">
       <button class="thumb-del" title="Remover esta foto" onclick="event.stopPropagation();deleteThumbImg(${img.id})">✕</button>
     `;
     t.addEventListener('click', () => showMainImg(i));
@@ -640,13 +640,15 @@ function _renderCatalogCandidates(images) {
   }
   strip.innerHTML = images.map(img => `
     <div class="cand-tile">
-      <img src="${img.url}" loading="lazy" onerror="this.parentElement.style.display='none'"
-           onclick="selectCatalogCandidate('${img.url.replace(/'/g, "\\'")}')">
+      <img src="${escapeHtml(img.url)}" loading="lazy" onerror="this.parentElement.style.display='none'" data-url="${escapeHtml(img.url)}">
       <span class="cand-tile-use">Usar</span>
       <button class="cand-tile-del" title="Não é esse produto"
               onclick="this.closest('.cand-tile').remove()">✕</button>
     </div>
   `).join('');
+  strip.querySelectorAll('img[data-url]').forEach(imgEl => {
+    imgEl.addEventListener('click', () => selectCatalogCandidate(imgEl.dataset.url));
+  });
   area.style.display = 'block';
 }
 

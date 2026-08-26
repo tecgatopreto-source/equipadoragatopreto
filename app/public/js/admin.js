@@ -254,7 +254,7 @@ function _renderAdminCatDropdown(q) {
   dd.innerHTML = visible
     .map(
       (o) =>
-        `<div class="cat-option${o.value === catFilter ? " cat-selected" : ""}" data-val="${o.value}">${o.label}</div>`,
+        `<div class="cat-option${o.value === catFilter ? " cat-selected" : ""}" data-val="${escapeHtml(o.value)}">${escapeHtml(o.label)}</div>`,
     )
     .join("");
   dd.hidden = false;
@@ -536,7 +536,7 @@ function _renderImgGrid(images) {
     .map(
       (img) => `
     <div class="img-tile${img.is_pinned ? " pinned" : ""}" title="${img.is_pinned ? "Foto principal" : "Clique para fixar como principal"}">
-      <img src="${img.url}" loading="lazy"
+      <img src="${escapeHtml(img.url)}" loading="lazy"
            onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span style=\'display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:.65rem;color:var(--muted);text-align:center;padding:.25rem\'>Imagem<br>indisponível</span>')"
            onclick="pinImage('${editingId}',${img.id})">
       ${img.is_pinned ? '<span class="img-tile-pin">✓ Principal</span>' : ""}
@@ -656,15 +656,17 @@ function _renderCandidates(images) {
     .map(
       (img) => `
     <div class="img-tile" title="Clique para usar esta imagem">
-      <img src="${img.url}" loading="lazy" onerror="this.parentElement.style.display='none'"
-           onclick="selectCandidateImage(this.closest('.img-tile'), '${img.url.replace(/'/g, "\\'")}')">
-      <span class="img-tile-badge" onclick="selectCandidateImage(this.closest('.img-tile'), '${img.url.replace(/'/g, "\\'")}')">Usar</span>
+      <img src="${escapeHtml(img.url)}" loading="lazy" onerror="this.parentElement.style.display='none'" data-url="${escapeHtml(img.url)}">
+      <span class="img-tile-badge" data-url="${escapeHtml(img.url)}">Usar</span>
       <button class="img-tile-del" title="Não é esse produto"
               onclick="this.closest('.img-tile').remove()">✕</button>
     </div>
   `,
     )
     .join("");
+  grid.querySelectorAll(".img-tile img[data-url], .img-tile-badge[data-url]").forEach((el) => {
+    el.addEventListener("click", () => selectCandidateImage(el.closest(".img-tile"), el.dataset.url));
+  });
   container.style.display = "block";
 }
 
@@ -1496,7 +1498,7 @@ async function loadUsers() {
       .map(
         (u) => `
       <tr>
-        <td style="font-size:.8rem">${u.email}</td>
+        <td style="font-size:.8rem">${escapeHtml(u.email)}</td>
         <td>
           <select onchange="setUserRole('${u.user_id}', this.value, this)"
                   style="border:1.5px solid var(--border2);border-radius:4px;padding:.35rem .55rem;font-size:.78rem;font-family:'Inter',sans-serif;background:var(--white);color:var(--text);cursor:pointer;width:100%">
