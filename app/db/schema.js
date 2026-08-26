@@ -12,6 +12,7 @@ function getDb() {
 async function initDb() {
   const { URL } = require('url');
   const dns = require('dns');
+  const path = require('path');
 
   // Prefere IPv4 sem congelar o IP: cada conexão nova re-resolve o DNS,
   // então uma troca de IP do pooler do Supabase não derruba o app até restart.
@@ -26,11 +27,15 @@ async function initDb() {
     user: decodeURIComponent(u.username),
     password: decodeURIComponent(u.password),
     database: u.pathname.slice(1),
-    // rejectUnauthorized fixo em false: o pooler do Supabase apresenta uma cadeia
-    // que o Node rejeita com SELF_SIGNED_CERT_IN_CHAIN mesmo sendo uma conexão
-    // legítima (ca-certificates do SO já atualizado, não resolve). Pendência de
-    // segurança: investigar/pinar o CA certo para religar validação estrita.
-    ssl: { rejectUnauthorized: false, servername: u.hostname },
+    // O pooler do Supabase assina seu certificado com uma CA própria (Supabase
+    // Root 2021 CA), que não está nos trust stores públicos — daí o Node
+    // rejeitar com SELF_SIGNED_CERT_IN_CHAIN sem essa CA pinada explicitamente.
+    // certs/supabase-root-ca.pem extraído direto da conexão real (SEC #8).
+    ssl: {
+      rejectUnauthorized: true,
+      servername: u.hostname,
+      ca: require('fs').readFileSync(path.join(__dirname, '..', 'certs', 'supabase-root-ca.pem'), 'utf8'),
+    },
     max: 20,
     idleTimeoutMillis: 60000,
     connectionTimeoutMillis: 5000,
