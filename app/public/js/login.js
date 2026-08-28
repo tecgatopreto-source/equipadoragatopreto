@@ -1,4 +1,4 @@
-const BASE = window.APP_BASE || '';
+const BASE = document.documentElement.dataset.base || '';
 
 function redirectByRole(user) {
   localStorage.setItem('gp_user', JSON.stringify(user));
@@ -62,5 +62,14 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     err.style.display = 'flex';
     btn.disabled = false;
     btn.textContent = 'Entrar';
+  }
+});
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-action]');
+  if (!el) return;
+  if (el.dataset.action === 'go-catalog') {
+    e.preventDefault();
+    location.href = BASE + '/';
   }
 });

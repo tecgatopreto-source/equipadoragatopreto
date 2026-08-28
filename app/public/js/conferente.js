@@ -1,6 +1,6 @@
 'use strict';
 
-const BASE = window.APP_BASE || '';
+const BASE = document.documentElement.dataset.base || '';
 /* ═══ STATE ══════════════════════════════════════════════════════════ */
 let products = [];
 let page     = 1;
@@ -102,7 +102,7 @@ function renderList() {
       : `<span class="stock-value empty">—</span>`;
 
     return `
-    <div class="product-card status-${p.status}" onclick="openSheet('${esc(p.id)}')" style="animation-delay:${Math.min(i,8)*30}ms">
+    <div class="product-card status-${p.status}" data-action="open-sheet" data-id="${esc(p.id)}" style="animation-delay:${Math.min(i,8)*30}ms">
       <div class="card-side"></div>
       <div class="card-body">
         <div class="card-top">
@@ -147,14 +147,14 @@ function renderPagination() {
 
   if (pages <= 1) { pag.innerHTML = ''; return; }
 
-  let html = `<button class="pg-btn" onclick="loadProducts(${page-1})" ${page===1?'disabled':''}>← Ant.</button>`;
+  let html = `<button class="pg-btn" data-action="load-products" data-page="${page-1}" ${page===1?'disabled':''}>← Ant.</button>`;
 
   const start = Math.max(1, page - 2);
   const end   = Math.min(pages, page + 2);
   for (let i = start; i <= end; i++) {
-    html += `<button class="pg-btn ${i===page?'active':''}" onclick="loadProducts(${i})">${i}</button>`;
+    html += `<button class="pg-btn ${i===page?'active':''}" data-action="load-products" data-page="${i}">${i}</button>`;
   }
-  html += `<button class="pg-btn" onclick="loadProducts(${page+1})" ${page===pages?'disabled':''}>Próx. →</button>`;
+  html += `<button class="pg-btn" data-action="load-products" data-page="${page+1}" ${page===pages?'disabled':''}>Próx. →</button>`;
   pag.innerHTML = html;
 }
 
@@ -349,6 +349,25 @@ document.addEventListener('keydown', (e) => {
 
 document.getElementById('inp-real').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); saveProduct(); }
+});
+
+/* ═══ DELEGATED ACTIONS (substitui onclick inline — necessário pra CSP) ═ */
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-action]');
+  if (!el) return;
+  switch (el.dataset.action) {
+    case 'go-catalog':
+      e.preventDefault();
+      location.href = BASE + '/';
+      break;
+    case 'logout': logout(); break;
+    case 'toggle-alert-filter': toggleAlertFilter(); break;
+    case 'set-status': setStatus(el.dataset.status, el); break;
+    case 'close-sheet': closeSheet(); break;
+    case 'save-product': saveProduct(); break;
+    case 'open-sheet': openSheet(el.dataset.id); break;
+    case 'load-products': loadProducts(Number(el.dataset.page)); break;
+  }
 });
 
 /* ═══ BOOT ═══════════════════════════════════════════════════════════ */

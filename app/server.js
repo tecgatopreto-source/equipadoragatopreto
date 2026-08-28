@@ -19,7 +19,7 @@ const app = express();
 app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
 
-// BASE_PATH é usado APENAS para injetar window.APP_BASE no HTML.
+// BASE_PATH é usado APENAS para injetar o atributo data-base no HTML.
 // O Express sempre serve as rotas na raiz — o Nginx já faz o strip do prefixo.
 // Ex: Nginx recebe /catalogo_produtos/admin → passa /admin ao Express.
 const BASE = (process.env.BASE_PATH || '').replace(/\/$/, '');
@@ -27,7 +27,8 @@ const BASE = (process.env.BASE_PATH || '').replace(/\/$/, '');
 function renderHtml(file) {
   let html = fs.readFileSync(path.join(__dirname, 'public', file), 'utf8');
   if (BASE) {
-    html = html.replace('<head>', `<head><script>window.APP_BASE='${BASE}';</script>`);
+    // Atributo de dados em vez de <script> inline — permite CSP sem 'unsafe-inline' em script-src.
+    html = html.replace('<html lang="pt-BR">', `<html lang="pt-BR" data-base="${BASE.replace(/"/g, '&quot;')}">`);
   }
   return html;
 }
@@ -35,6 +36,31 @@ const adminHtml      = renderHtml('admin.html');
 const conferenteHtml = renderHtml('conferente.html');
 const indexHtml      = renderHtml('index.html');
 const loginHtml      = renderHtml('login.html');
+
+// Headers de segurança (achado #25 da auditoria). CSP sem 'unsafe-inline' em
+// script-src — só é possível porque todo onclick/onerror inline foi
+// substituído por addEventListener (ver public/js/*.js).
+app.use((req, res, next) => {
+  res.set({
+    'Content-Security-Policy': [
+      "default-src 'self'",
+      "script-src 'self' https://cdn.sheetjs.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' https:",
+      "connect-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'self'",
+    ].join('; '),
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'SAMEORIGIN',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
+  });
+  next();
+});
 
 app.use(require('cookie-parser')());
 app.use(express.json({ limit: '2mb' }));

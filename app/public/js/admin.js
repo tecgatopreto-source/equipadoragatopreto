@@ -1,5 +1,5 @@
 // ── Auth guard ─────────────────────────────────────────────────────────────
-const BASE = window.APP_BASE || "";
+const BASE = document.documentElement.dataset.base || "";
 function escapeHtml(str) {
   if (str == null) return "";
   return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -80,6 +80,17 @@ function navigate(page) {
   }
   if (page === "pdfs") loadImportHistory();
   if (page === "users") loadUsers();
+}
+
+function openDeactivateFlag(flag) {
+  navigate("deactivate");
+  document.getElementById("dact-flag").value = flag;
+  loadDeactivate();
+}
+
+function goToProductsWithStatus(status) {
+  _applyStatusFilter(status);
+  navigate("products");
 }
 
 // ── API helper ─────────────────────────────────────────────────────────────
@@ -416,8 +427,8 @@ async function loadProducts(page) {
           <td>${badge(p.status)}</td>
           <td>
             <div class="td-actions">
-              <button class="btn-sm" onclick="editProduct('${p.id}')">Editar</button>
-              <button class="btn-sm btn-danger" onclick="deleteProduct('${p.id}','${escapeHtml(p.name.replace(/\\/g, "\\\\").replace(/'/g, "\\'"))}')">Del</button>
+              <button class="btn-sm" data-action="edit-product" data-id="${escapeHtml(p.id)}">Editar</button>
+              <button class="btn-sm btn-danger" data-action="delete-product" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}">Del</button>
             </div>
           </td>
         </tr>
@@ -536,16 +547,23 @@ function _renderImgGrid(images) {
     .map(
       (img) => `
     <div class="img-tile${img.is_pinned ? " pinned" : ""}" title="${img.is_pinned ? "Foto principal" : "Clique para fixar como principal"}">
-      <img src="${escapeHtml(img.url)}" loading="lazy"
-           onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span style=\'display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:.65rem;color:var(--muted);text-align:center;padding:.25rem\'>Imagem<br>indisponível</span>')"
-           onclick="pinImage('${editingId}',${img.id})">
+      <img src="${escapeHtml(img.url)}" loading="lazy" data-action="pin-image" data-img-id="${img.id}">
       ${img.is_pinned ? '<span class="img-tile-pin">✓ Principal</span>' : ""}
       ${img.is_manual ? '<span class="img-tile-badge">Manual</span>' : ""}
-      <button class="img-tile-del" onclick="event.stopPropagation();deleteImageById(${img.id})" title="Remover">✕</button>
+      <button class="img-tile-del" data-action="delete-image-by-id" data-img-id="${img.id}" title="Remover">✕</button>
     </div>
   `,
     )
     .join("");
+  grid.querySelectorAll("img[data-action='pin-image']").forEach((imgEl) => {
+    imgEl.addEventListener("error", () => {
+      imgEl.style.display = "none";
+      imgEl.insertAdjacentHTML(
+        "afterend",
+        "<span style=\"display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:.65rem;color:var(--muted);text-align:center;padding:.25rem\">Imagem<br>indisponível</span>",
+      );
+    }, { once: true });
+  });
 }
 
 function loadProductImages(productId, images) {
@@ -656,16 +674,18 @@ function _renderCandidates(images) {
     .map(
       (img) => `
     <div class="img-tile" title="Clique para usar esta imagem">
-      <img src="${escapeHtml(img.url)}" loading="lazy" onerror="this.parentElement.style.display='none'" data-url="${escapeHtml(img.url)}">
+      <img src="${escapeHtml(img.url)}" loading="lazy" data-url="${escapeHtml(img.url)}">
       <span class="img-tile-badge" data-url="${escapeHtml(img.url)}">Usar</span>
-      <button class="img-tile-del" title="Não é esse produto"
-              onclick="this.closest('.img-tile').remove()">✕</button>
+      <button class="img-tile-del" title="Não é esse produto" data-action="remove-img-tile">✕</button>
     </div>
   `,
     )
     .join("");
   grid.querySelectorAll(".img-tile img[data-url], .img-tile-badge[data-url]").forEach((el) => {
     el.addEventListener("click", () => selectCandidateImage(el.closest(".img-tile"), el.dataset.url));
+    if (el.tagName === "IMG") {
+      el.addEventListener("error", () => { el.parentElement.style.display = "none"; }, { once: true });
+    }
   });
   container.style.display = "block";
 }
@@ -1061,7 +1081,6 @@ async function loadDeactivate() {
     tbody.innerHTML = data.rows
       .map((r) => {
         const hasEllipsis = r.name_full && r.name_full.length > 20;
-        const idSafe = r.id.replace(/'/g, "\\'");
         return `
       <tr>
         <td style="font-weight:600;font-size:.72rem">${r.id}</td>
@@ -1073,10 +1092,10 @@ async function loadDeactivate() {
         <td style="white-space:nowrap">${dactBadges(r)}</td>
         <td>
           <div class="td-actions">
-            <button class="btn-sm" onclick="editProduct('${idSafe}')" title="Editar produto">Editar</button>
+            <button class="btn-sm" data-action="edit-product" data-id="${escapeHtml(r.id)}" title="Editar produto">Editar</button>
             ${
               r.has_fiscal_alert
-                ? `<button class="btn-sm" onclick="resolveAlert('${idSafe}')"
+                ? `<button class="btn-sm" data-action="resolve-alert" data-id="${escapeHtml(r.id)}"
                    style="border-color:var(--green);color:var(--green)" title="Confirma que o produto foi desativado no fiscal">✓ Resolver</button>`
                 : ""
             }
@@ -1446,8 +1465,8 @@ async function processGruposPdf(file) {
       </table>
     </div>
     <div style="display:flex;gap:.5rem">
-      <button class="btn-sm btn-primary" onclick="applyGrupos()">✅ Aplicar todos os grupos</button>
-      <button class="btn-sm" onclick="resetGrupos()">Cancelar</button>
+      <button class="btn-sm btn-primary" data-action="apply-grupos">✅ Aplicar todos os grupos</button>
+      <button class="btn-sm" data-action="reset-grupos">Cancelar</button>
     </div>
   `;
 }
@@ -1500,7 +1519,7 @@ async function loadUsers() {
       <tr>
         <td style="font-size:.8rem">${escapeHtml(u.email)}</td>
         <td>
-          <select onchange="setUserRole('${u.user_id}', this.value, this)"
+          <select data-action="set-user-role" data-user-id="${escapeHtml(u.user_id)}"
                   style="border:1.5px solid var(--border2);border-radius:4px;padding:.35rem .55rem;font-size:.78rem;font-family:'Inter',sans-serif;background:var(--white);color:var(--text);cursor:pointer;width:100%">
             <option value="admin"      ${u.role === "admin" ? "selected" : ""}>Admin</option>
             <option value="conferente" ${u.role === "conferente" ? "selected" : ""}>Conferente</option>
@@ -1531,6 +1550,85 @@ async function setUserRole(userId, role, selectEl) {
     selectEl.disabled = false;
   }
 }
+
+// ── Delegated actions (substitui onclick/onchange/ondrag inline — necessário pra CSP) ──
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("[data-action]");
+  if (!el) return;
+  switch (el.dataset.action) {
+    case "toggle-sidebar": toggleSidebar(); break;
+    case "go-catalog": e.preventDefault(); location.href = BASE + "/"; break;
+    case "logout": logout(); break;
+    case "navigate": navigate(el.dataset.page); break;
+    case "open-deactivate": openDeactivateFlag(el.dataset.flag); break;
+    case "dashboard-status-link": goToProductsWithStatus(el.dataset.status); break;
+    case "open-product-form": openProductForm(); break;
+    case "set-status-filter": setStatusFilter(el.dataset.val); break;
+    case "set-disabled-filter": setDisabledFilter(el.dataset.val); break;
+    case "toggle-alert-filter": toggleAlertFilter(); break;
+    case "prod-page-prev": loadProducts(prodPage - 1); break;
+    case "prod-page-next": loadProducts(prodPage + 1); break;
+    case "clear-rpt-dates": clearRptDates(); break;
+    case "load-report": loadReport(); break;
+    case "export-csv": exportCSV(); break;
+    case "export-xls": exportXLS(); break;
+    case "clear-dact-dates": clearDactDates(); break;
+    case "load-deactivate": loadDeactivate(); break;
+    case "export-dact-csv": exportDeactivateCSV(); break;
+    case "export-dact-xls": exportDeactivateXLS(); break;
+    case "load-import-history": loadImportHistory(); break;
+    case "close-preview": closePreview(); break;
+    case "load-users": loadUsers(); break;
+    case "close-product-form": closeProductForm(); break;
+    case "search-product-images": searchProductImages(); break;
+    case "clear-product-images": clearProductImages(); break;
+    case "close-img-candidates": document.getElementById("img-candidates").style.display = "none"; break;
+    case "upload-image-file": uploadImageFile(); break;
+    case "add-manual-image": addManualImage(); break;
+    case "save-product": saveProduct(); break;
+    case "edit-product": editProduct(el.dataset.id); break;
+    case "delete-product": deleteProduct(el.dataset.id, el.dataset.name); break;
+    case "pin-image": pinImage(editingId, Number(el.dataset.imgId)); break;
+    case "delete-image-by-id": e.stopPropagation(); deleteImageById(Number(el.dataset.imgId)); break;
+    case "remove-img-tile": el.closest(".img-tile").remove(); break;
+    case "resolve-alert": resolveAlert(el.dataset.id); break;
+    case "apply-grupos": applyGrupos(); break;
+    case "reset-grupos": resetGrupos(); break;
+    case "click-file-input": document.getElementById(el.dataset.fileInput).click(); break;
+  }
+});
+
+document.addEventListener("change", (e) => {
+  const el = e.target.closest("[data-action]");
+  if (!el) return;
+  switch (el.dataset.action) {
+    case "load-report": loadReport(); break;
+    case "load-deactivate": loadDeactivate(); break;
+    case "handle-file-select": handleFileSelect(el.dataset.type); break;
+    case "handle-grupos-file": handleGruposFile(); break;
+    case "set-user-role": setUserRole(el.dataset.userId, el.value, el); break;
+  }
+});
+
+document.addEventListener("dragover", (e) => {
+  const el = e.target.closest("[data-dropzone]");
+  if (!el) return;
+  onDrag(e, el.dataset.dropzone);
+});
+document.addEventListener("dragleave", (e) => {
+  const el = e.target.closest("[data-dropzone]");
+  if (!el) return;
+  offDrag(el.dataset.dropzone);
+});
+document.addEventListener("drop", (e) => {
+  const el = e.target.closest("[data-dropzone]");
+  if (!el) return;
+  onDropFile(e, el.dataset.dropzone);
+});
+
+document.getElementById("f-sreal").addEventListener("input", applyStockRuleUI);
+document.getElementById("prod-q-name").addEventListener("input", debSearch);
+document.getElementById("prod-q-code").addEventListener("input", debSearch);
 
 // ── Init ───────────────────────────────────────────────────────────────────
 // Restaura filtros salvos

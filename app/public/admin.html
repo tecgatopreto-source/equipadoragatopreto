@@ -14,39 +14,39 @@
 
 <header>
   <div style="display:flex;align-items:center;gap:.75rem">
-    <button class="menu-toggle" id="menu-toggle" onclick="toggleSidebar()">☰</button>
+    <button class="menu-toggle" id="menu-toggle" data-action="toggle-sidebar">☰</button>
     <div>
       <div class="logo-mark">Gato <span>Preto</span></div>
       <div class="logo-sub">Painel Administrativo</div>
     </div>
   </div>
   <div class="header-actions">
-    <a class="btn-sm" href="#" onclick="location.href=(window.APP_BASE||'')+'/';return false">Ver Catálogo</a>
-    <button class="btn-sm btn-danger" onclick="logout()">Sair (<span id="uname">—</span>)</button>
+    <a class="btn-sm" href="#" data-action="go-catalog">Ver Catálogo</a>
+    <button class="btn-sm btn-danger" data-action="logout">Sair (<span id="uname">—</span>)</button>
   </div>
 </header>
 
 <div class="admin-layout">
   <aside class="sidebar">
     <h3>Navegação</h3>
-    <a class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">Dashboard</a>
-    <a class="nav-item" data-page="products" onclick="navigate('products')">Produtos</a>
-    <a class="nav-item" data-page="report" onclick="navigate('report')">Relatório de Alterações</a>
-    <a class="nav-item" data-page="deactivate" onclick="navigate('deactivate')">Desativar e Atualizar</a>
-    <a class="nav-item" data-page="pdfs" onclick="navigate('pdfs')">Importar PDFs</a>
-    <a class="nav-item" data-page="users" onclick="navigate('users')">Usuários</a>
+    <a class="nav-item active" data-page="dashboard" data-action="navigate">Dashboard</a>
+    <a class="nav-item" data-page="products" data-action="navigate">Produtos</a>
+    <a class="nav-item" data-page="report" data-action="navigate">Relatório de Alterações</a>
+    <a class="nav-item" data-page="deactivate" data-action="navigate">Desativar e Atualizar</a>
+    <a class="nav-item" data-page="pdfs" data-action="navigate">Importar PDFs</a>
+    <a class="nav-item" data-page="users" data-action="navigate">Usuários</a>
 
     <div class="action-cards">
       <h3 style="margin-top:.25rem">Ações de Hoje</h3>
-      <a class="action-card ac-amber" onclick="navigate('report')">
+      <a class="action-card ac-amber" data-page="report" data-action="navigate">
         <span class="action-card-label">✏️ Alterações</span>
         <span class="action-card-count" id="ac-alteracoes">—</span>
       </a>
-      <a class="action-card ac-red" onclick="navigate('deactivate');document.getElementById('dact-flag').value='desativar';loadDeactivate()">
+      <a class="action-card ac-red" data-action="open-deactivate" data-flag="desativar">
         <span class="action-card-label">⚠️ Desativar</span>
         <span class="action-card-count" id="ac-desativar">—</span>
       </a>
-      <a class="action-card ac-blue" onclick="navigate('deactivate');document.getElementById('dact-flag').value='atualizar';loadDeactivate()">
+      <a class="action-card ac-blue" data-action="open-deactivate" data-flag="atualizar">
         <span class="action-card-label">🔄 Atualizar</span>
         <span class="action-card-count" id="ac-atualizar">—</span>
       </a>
@@ -58,12 +58,12 @@
     <div class="page active" id="page-dashboard">
       <div class="page-header">
         <h2>Resumo de Estoque</h2>
-        <a href="#" onclick="navigate('products')" style="color:#52b87a;font-weight:700;font-size:.88rem;text-decoration:none">Ver Mais</a>
+        <a href="#" data-page="products" data-action="navigate" style="color:#52b87a;font-weight:700;font-size:.88rem;text-decoration:none">Ver Mais</a>
       </div>
       <div class="summary-grid">
 
         <!-- Iguais -->
-        <div class="sum-card sum-green" onclick="_applyStatusFilter('0');navigate('products')">
+        <div class="sum-card sum-green" data-action="dashboard-status-link" data-status="0">
           <div class="sum-top">
             <div class="sum-icon-label">
               <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -77,7 +77,7 @@
         </div>
 
         <!-- Divergentes -->
-        <div class="sum-card sum-purple" onclick="_applyStatusFilter('1');navigate('products')">
+        <div class="sum-card sum-purple" data-action="dashboard-status-link" data-status="1">
           <div class="sum-top">
             <div class="sum-icon-label">
               <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -92,7 +92,7 @@
         </div>
 
         <!-- Só Fiscal -->
-        <div class="sum-card sum-blue" onclick="_applyStatusFilter('2');navigate('products')">
+        <div class="sum-card sum-blue" data-action="dashboard-status-link" data-status="2">
           <div class="sum-top">
             <div class="sum-icon-label">
               <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -107,7 +107,7 @@
         </div>
 
         <!-- Total -->
-        <div class="sum-card sum-red" onclick="_applyStatusFilter('T');navigate('products')">
+        <div class="sum-card sum-red" data-action="dashboard-status-link" data-status="T">
           <div class="sum-top">
             <div class="sum-icon-label">
               <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -128,29 +128,29 @@
     <div class="page" id="page-products">
       <div class="page-header">
         <h2>Produtos</h2>
-        <button class="btn-sm btn-primary" onclick="openProductForm()">+ Novo Produto</button>
+        <button class="btn-sm btn-primary" data-action="open-product-form">+ Novo Produto</button>
       </div>
       <div class="table-wrap">
         <div class="table-toolbar" style="flex-wrap:nowrap;gap:.5rem;overflow-x:auto">
-          <input class="search-in" id="prod-q-name" placeholder="Buscar por nome…" oninput="debSearch()" autocomplete="off" style="flex:1 1 0;min-width:80px">
-          <input class="search-in" id="prod-q-code" placeholder="Buscar por código…" oninput="debSearch()" autocomplete="off" style="flex:1 1 0;min-width:80px">
+          <input class="search-in" id="prod-q-name" placeholder="Buscar por nome…" autocomplete="off" style="flex:1 1 0;min-width:80px">
+          <input class="search-in" id="prod-q-code" placeholder="Buscar por código…" autocomplete="off" style="flex:1 1 0;min-width:80px">
           <div class="cat-wrap" style="flex:1 1 0;min-width:120px;position:relative">
             <input type="text" id="cat-group" class="search-in" placeholder="Todas as categorias" autocomplete="off" style="width:100%;box-sizing:border-box;padding-right:1.4rem">
             <button class="cat-clear" id="cat-group-clear" tabindex="-1" style="display:none">×</button>
             <div id="cat-group-dropdown" class="cat-dropdown" hidden></div>
           </div>
           <div class="filter-group" id="status-group">
-            <button class="filter-btn active" data-val="T"  onclick="setStatusFilter('T')">Todos</button>
-            <button class="filter-btn"        data-val="0"  onclick="setStatusFilter('0')">Iguais</button>
-            <button class="filter-btn"        data-val="1"  onclick="setStatusFilter('1')">Divergentes</button>
-            <button class="filter-btn"        data-val="2"  onclick="setStatusFilter('2')">Só Fiscal</button>
+            <button class="filter-btn active" data-val="T"  data-action="set-status-filter">Todos</button>
+            <button class="filter-btn"        data-val="0"  data-action="set-status-filter">Iguais</button>
+            <button class="filter-btn"        data-val="1"  data-action="set-status-filter">Divergentes</button>
+            <button class="filter-btn"        data-val="2"  data-action="set-status-filter">Só Fiscal</button>
           </div>
           <div class="filter-group" id="disabled-group">
-            <button class="filter-btn active" data-val=""  onclick="setDisabledFilter('')">Todos</button>
-            <button class="filter-btn"        data-val="0" onclick="setDisabledFilter('0')">Ativos</button>
-            <button class="filter-btn"        data-val="1" onclick="setDisabledFilter('1')">Desativados</button>
+            <button class="filter-btn active" data-val=""  data-action="set-disabled-filter">Todos</button>
+            <button class="filter-btn"        data-val="0" data-action="set-disabled-filter">Ativos</button>
+            <button class="filter-btn"        data-val="1" data-action="set-disabled-filter">Desativados</button>
           </div>
-          <button class="btn-sm" id="btn-alert-filter" onclick="toggleAlertFilter()"
+          <button class="btn-sm" id="btn-alert-filter" data-action="toggle-alert-filter"
                   style="white-space:nowrap" title="Mostrar apenas produtos com alerta fiscal">
             ⚠️ Alerta Fiscal
           </button>
@@ -177,8 +177,8 @@
         <div class="tbl-pagination">
           <span id="pg-info"></span>
           <div class="pg-btns">
-            <button class="pg-btn" id="pg-prev" onclick="loadProducts(prodPage-1)">← Ant.</button>
-            <button class="pg-btn" id="pg-next" onclick="loadProducts(prodPage+1)">Próx. →</button>
+            <button class="pg-btn" id="pg-prev" data-action="prod-page-prev">← Ant.</button>
+            <button class="pg-btn" id="pg-next" data-action="prod-page-next">Próx. →</button>
           </div>
         </div>
       </div>
@@ -196,16 +196,16 @@
           <!-- Filtro de datas -->
           <div style="display:flex;align-items:center;gap:.4rem;flex:1;min-width:260px">
             <label style="font-size:.65rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap">De</label>
-            <input type="date" id="rpt-from" class="search-in" style="flex:1;max-width:140px" onchange="loadReport()">
+            <input type="date" id="rpt-from" class="search-in" style="flex:1;max-width:140px" data-action="load-report">
             <label style="font-size:.65rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap">Até</label>
-            <input type="date" id="rpt-to" class="search-in" style="flex:1;max-width:140px" onchange="loadReport()">
-            <button class="btn-sm" onclick="clearRptDates()" title="Limpar filtro de data" style="padding:.38rem .6rem">✕</button>
+            <input type="date" id="rpt-to" class="search-in" style="flex:1;max-width:140px" data-action="load-report">
+            <button class="btn-sm" data-action="clear-rpt-dates" title="Limpar filtro de data" style="padding:.38rem .6rem">✕</button>
           </div>
           <!-- Ações -->
           <div style="display:flex;gap:.4rem">
-            <button class="btn-sm" onclick="loadReport()">↺ Atualizar</button>
-            <button class="btn-sm" onclick="exportCSV()" style="border-color:#1a7a3e;color:#1a7a3e" title="Exportar como CSV">⬇ CSV</button>
-            <button class="btn-sm btn-primary" onclick="exportXLS()" title="Exportar como Excel">⬇ XLS</button>
+            <button class="btn-sm" data-action="load-report">↺ Atualizar</button>
+            <button class="btn-sm" data-action="export-csv" style="border-color:#1a7a3e;color:#1a7a3e" title="Exportar como CSV">⬇ CSV</button>
+            <button class="btn-sm btn-primary" data-action="export-xls" title="Exportar como Excel">⬇ XLS</button>
           </div>
         </div>
         <div style="overflow-x:auto">
@@ -240,22 +240,22 @@
           <!-- Filtro de datas -->
           <div style="display:flex;align-items:center;gap:.4rem;flex:1;min-width:280px">
             <label style="font-size:.65rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap">De</label>
-            <input type="date" id="dact-from" class="search-in" style="flex:1;max-width:140px" onchange="loadDeactivate()">
+            <input type="date" id="dact-from" class="search-in" style="flex:1;max-width:140px" data-action="load-deactivate">
             <label style="font-size:.65rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap">Até</label>
-            <input type="date" id="dact-to" class="search-in" style="flex:1;max-width:140px" onchange="loadDeactivate()">
-            <button class="btn-sm" onclick="clearDactDates()" title="Limpar datas" style="padding:.38rem .6rem">✕</button>
+            <input type="date" id="dact-to" class="search-in" style="flex:1;max-width:140px" data-action="load-deactivate">
+            <button class="btn-sm" data-action="clear-dact-dates" title="Limpar datas" style="padding:.38rem .6rem">✕</button>
           </div>
           <!-- Filtro por categoria -->
-          <select class="search-in" id="dact-flag" onchange="loadDeactivate()" style="max-width:240px">
+          <select class="search-in" id="dact-flag" data-action="load-deactivate" style="max-width:240px">
             <option value="" selected>Todos (Desativar + Atualizar)</option>
             <option value="desativar">⚠️ Desativar Fiscal</option>
             <option value="atualizar">🔄 Modificados (Atualizar)</option>
           </select>
           <!-- Botões -->
           <div style="display:flex;gap:.4rem">
-            <button class="btn-sm" onclick="loadDeactivate()">↺ Atualizar</button>
-            <button class="btn-sm" onclick="exportDeactivateCSV()" style="border-color:#1a7a3e;color:#1a7a3e" title="Exportar CSV">⬇ CSV</button>
-            <button class="btn-sm btn-primary" onclick="exportDeactivateXLS()" title="Exportar Excel">⬇ XLS</button>
+            <button class="btn-sm" data-action="load-deactivate">↺ Atualizar</button>
+            <button class="btn-sm" data-action="export-dact-csv" style="border-color:#1a7a3e;color:#1a7a3e" title="Exportar CSV">⬇ CSV</button>
+            <button class="btn-sm btn-primary" data-action="export-dact-xls" title="Exportar Excel">⬇ XLS</button>
           </div>
         </div>
         <div style="overflow-x:auto">
@@ -282,7 +282,7 @@
     <div class="page" id="page-pdfs">
       <div class="page-header">
         <h2>Importar PDFs</h2>
-        <button class="btn-sm" onclick="loadImportHistory()">↺ Atualizar histórico</button>
+        <button class="btn-sm" data-action="load-import-history">↺ Atualizar histórico</button>
       </div>
 
       <div class="pdf-cards">
@@ -290,8 +290,8 @@
         <div class="pdf-card" >
           <h3>PDF Fiscal</h3>
           <p style="font-size:.72rem;color:var(--muted);margin-bottom:.6rem">Relatório: <strong>R12 — Preço + Estoque</strong></p>
-          <div class="upload-drop" id="drop-fiscal" ondragover="onDrag(event,'fiscal')" ondragleave="offDrag('fiscal')" ondrop="onDropFile(event,'fiscal')" onclick="document.getElementById('file-fiscal').click()">
-            <input type="file" accept="application/pdf" id="file-fiscal" onchange="handleFileSelect('fiscal')" style="display:none">
+          <div class="upload-drop" id="drop-fiscal" data-dropzone="fiscal" data-action="click-file-input" data-file-input="file-fiscal">
+            <input type="file" accept="application/pdf" id="file-fiscal" data-action="handle-file-select" data-type="fiscal" style="display:none">
             <strong>Arraste ou clique para selecionar</strong>
             <p>Atualiza: Preço Fiscal e Estoque Fiscal</p>
           </div>
@@ -302,8 +302,8 @@
         <div class="pdf-card">
           <h3>PDF Gerencial</h3>
           <p style="font-size:.72rem;color:var(--muted);margin-bottom:.6rem">Relatório: <strong>R12 — Preço + Estoque</strong></p>
-          <div class="upload-drop" id="drop-gerencial" ondragover="onDrag(event,'gerencial')" ondragleave="offDrag('gerencial')" ondrop="onDropFile(event,'gerencial')" onclick="document.getElementById('file-gerencial').click()">
-            <input type="file" accept="application/pdf" id="file-gerencial" onchange="handleFileSelect('gerencial')" style="display:none">
+          <div class="upload-drop" id="drop-gerencial" data-dropzone="gerencial" data-action="click-file-input" data-file-input="file-gerencial">
+            <input type="file" accept="application/pdf" id="file-gerencial" data-action="handle-file-select" data-type="gerencial" style="display:none">
             <strong>Arraste ou clique para selecionar</strong>
             <p>Atualiza: Preço Gerencial e Estoque Gerencial</p>
           </div>
@@ -315,8 +315,8 @@
           <h3>Importar Grupos de Produto</h3>
           <p style="font-size:.72rem;color:var(--muted);margin-bottom:.3rem">Relatório: <strong>R12 — Preço + Estoque</strong> &nbsp;·&nbsp; Filtro Tipo: <strong>Grupo de Produtos</strong></p>
           <p style="font-size:.72rem;color:var(--muted);margin-bottom:.75rem">Atribui a categoria correta a todos os produtos de uma vez — sem repetir grupo por grupo.</p>
-          <div class="upload-drop" id="drop-grupos" onclick="document.getElementById('file-grupos').click()">
-            <input type="file" accept="application/pdf" id="file-grupos" style="display:none" onchange="handleGruposFile()">
+          <div class="upload-drop" id="drop-grupos" data-action="click-file-input" data-file-input="file-grupos">
+            <input type="file" accept="application/pdf" id="file-grupos" data-action="handle-grupos-file" style="display:none">
             <strong>Arraste ou clique para selecionar</strong>
             <p>PDF: Grupos de Produto (relatório de grupos do SV)</p>
           </div>
@@ -331,7 +331,7 @@
       <div class="preview-section" id="preview-section">
         <div class="preview-header">
           <h3 id="preview-title">Resultado da Importação</h3>
-          <button class="btn-sm" onclick="closePreview()">✕ Fechar</button>
+          <button class="btn-sm" data-action="close-preview">✕ Fechar</button>
         </div>
         <div id="preview-loading" class="import-loading">Processando e importando PDF…</div>
         <div id="import-result" style="padding:1.25rem 1.5rem;display:none"></div>
@@ -365,7 +365,7 @@
     <div class="page" id="page-users">
       <div class="page-header">
         <h2>Usuários com Acesso</h2>
-        <button class="btn-sm" onclick="loadUsers()">↺ Atualizar</button>
+        <button class="btn-sm" data-action="load-users">↺ Atualizar</button>
       </div>
       <p style="font-size:.75rem;color:var(--muted);margin-bottom:1rem;line-height:1.5">
         Usuários cadastrados no portal <strong>GestaoSistemas</strong> com acesso a este sistema.
@@ -396,7 +396,7 @@
   <div class="drawer">
     <div class="drawer-header">
       <h3 id="form-title">Novo Produto</h3>
-      <button class="btn-sm" onclick="closeProductForm()">✕</button>
+      <button class="btn-sm" data-action="close-product-form">✕</button>
     </div>
     <div class="drawer-body">
       <input type="hidden" id="f-id-original">
@@ -437,7 +437,7 @@
       <div class="field" style="border:1.5px solid var(--accent);border-radius:4px;padding:.75rem;background:rgba(34,197,94,.03)">
         <label style="color:var(--accent)">★ Estoque Real (contagem física)</label>
         <input type="number" id="f-sreal" step="1" min="0" placeholder="Preencha após conferência…"
-               style="border-color:var(--accent)" oninput="applyStockRuleUI()">
+               style="border-color:var(--accent)">
         <div class="fiscal-warning" id="fiscal-warning-msg">
           ⚠️ Real = 0 — Estoque Gerencial será zerado e este produto ficará marcado para <strong>desativação no fiscal</strong>.
         </div>
@@ -452,36 +452,36 @@
         <span class="img-section-label">Fotos do Produto</span>
         <div class="img-grid" id="img-grid"><span style="font-size:.72rem;color:var(--muted)">Nenhuma foto ainda.</span></div>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
-          <button class="btn-sm btn-primary" id="btn-search-imgs" onclick="searchProductImages()">🔍 Buscar Imagens</button>
-          <button class="btn-sm" style="color:var(--muted)" onclick="clearProductImages()">🗑 Limpar Tudo</button>
+          <button class="btn-sm btn-primary" id="btn-search-imgs" data-action="search-product-images">🔍 Buscar Imagens</button>
+          <button class="btn-sm" style="color:var(--muted)" data-action="clear-product-images">🗑 Limpar Tudo</button>
         </div>
         <!-- Candidatas retornadas pela busca -->
         <div id="img-candidates" style="display:none;margin-bottom:.75rem">
           <div style="font-size:.63rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:.4rem">Sugestões — clique para usar como foto principal</div>
           <div class="img-grid" id="candidate-grid"></div>
           <button class="btn-sm" style="color:var(--muted);margin-top:.4rem"
-                  onclick="document.getElementById('img-candidates').style.display='none'">Fechar sugestões</button>
+                  data-action="close-img-candidates">Fechar sugestões</button>
         </div>
         <div>
           <div style="font-size:.63rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:.35rem">Enviar foto do produto (arquivo)</div>
           <div class="img-manual-row">
             <input type="file" id="f-img-file" accept="image/*" capture="environment"
                    style="flex:1;font-size:.75rem;border:1.5px solid var(--border2);border-radius:4px;padding:.38rem .6rem;cursor:pointer">
-            <button class="btn-sm btn-primary" onclick="uploadImageFile()">Enviar</button>
+            <button class="btn-sm btn-primary" data-action="upload-image-file">Enviar</button>
           </div>
         </div>
         <div style="margin-top:.65rem">
           <div style="font-size:.63rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:.35rem">Ou adicionar por link (URL)</div>
           <div class="img-manual-row">
             <input type="url" id="f-img-url" placeholder="https://…">
-            <button class="btn-sm" onclick="addManualImage()">Adicionar</button>
+            <button class="btn-sm" data-action="add-manual-image">Adicionar</button>
           </div>
         </div>
       </div>
     </div>
     <div class="drawer-footer">
-      <button class="btn-sm" onclick="closeProductForm()">Cancelar</button>
-      <button class="btn-sm btn-primary" onclick="saveProduct()" id="save-btn">Salvar</button>
+      <button class="btn-sm" data-action="close-product-form">Cancelar</button>
+      <button class="btn-sm btn-primary" data-action="save-product" id="save-btn">Salvar</button>
     </div>
   </div>
 </div>

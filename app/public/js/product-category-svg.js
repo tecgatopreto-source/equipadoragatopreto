@@ -1,4 +1,4 @@
-const _SVG_BASE = window.APP_BASE || '';
+const _SVG_BASE = document.documentElement.dataset.base || '';
 
 // Mapa direto: valor exato de categoria no banco (maiúsculas) → arquivo em app/svg/
 const _CAT_SVG = {

@@ -34,14 +34,11 @@
             <a
               class="btn-logout"
               href="#"
-              onclick="
-                location.href = (window.APP_BASE || '') + '/';
-                return false;
-              "
+              data-action="go-catalog"
               style="text-decoration: none"
               >Ver Catálogo</a
             >
-            <button class="btn-logout" onclick="logout()">Sair</button>
+            <button class="btn-logout" data-action="logout">Sair</button>
           </div>
         </header>
 
@@ -85,7 +82,7 @@
           <button
             class="filter-btn"
             id="alert-filter-btn"
-            onclick="toggleAlertFilter()"
+            data-action="toggle-alert-filter"
             title="Apenas alertas fiscais"
           >
             ⚠️
@@ -97,17 +94,17 @@
           <button
             class="chip active"
             data-status="T"
-            onclick="setStatus('T', this)"
+            data-action="set-status"
           >
             Todos
           </button>
-          <button class="chip" data-status="0" onclick="setStatus('0', this)">
+          <button class="chip" data-status="0" data-action="set-status">
             Iguais
           </button>
-          <button class="chip" data-status="1" onclick="setStatus('1', this)">
+          <button class="chip" data-status="1" data-action="set-status">
             Divergentes
           </button>
-          <button class="chip" data-status="2" onclick="setStatus('2', this)">
+          <button class="chip" data-status="2" data-action="set-status">
             Só Fiscal
           </button>
         </div>
@@ -122,11 +119,11 @@
     </div>
 
     <!-- ╔══ BOTTOM SHEET ═══════════════════════════════════╗ -->
-    <div class="sheet-overlay" id="sheet-overlay" onclick="closeSheet()"></div>
+    <div class="sheet-overlay" id="sheet-overlay" data-action="close-sheet"></div>
     <div class="bottom-sheet" id="bottom-sheet">
       <div class="sheet-handle"></div>
       <div class="sheet-header">
-        <button class="btn-sheet-close" onclick="closeSheet()">
+        <button class="btn-sheet-close" data-action="close-sheet">
           <svg
             viewBox="0 0 24 24"
             fill="none"
@@ -188,7 +185,7 @@
         <div class="rule-hint" id="rule-hint"></div>
 
         <!-- Save button -->
-        <button class="btn-save" id="btn-save" onclick="saveProduct()">
+        <button class="btn-save" id="btn-save" data-action="save-product">
           Salvar
         </button>
         <div

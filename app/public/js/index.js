@@ -1,6 +1,7 @@
 // ── Auth ───────────────────────────────────────────────────────────────────
-const BASE = window.APP_BASE || '';
+const BASE = document.documentElement.dataset.base || '';
 let user  = JSON.parse(localStorage.getItem('gp_user') || 'null');
+function _isAdmin() { return !!(user && user.role === 'admin'); }
 
 function renderAuthActions() {
   const el = document.getElementById('auth-actions');
@@ -10,7 +11,7 @@ function renderAuthActions() {
       : user.role === 'conferente'
         ? `<a class="btn-admin" href="${BASE}/conferente">📋 Conferente</a>`
         : '';
-    el.innerHTML = dashLink + `<button class="btn-login" onclick="logout()">Sair (${user.username})</button>`;
+    el.innerHTML = dashLink + `<button class="btn-login" data-action="logout">Sair (${user.username})</button>`;
   } else {
     el.innerHTML = `<a class="btn-login" href="${BASE}/login.html">Entrar</a>`;
   }
@@ -74,7 +75,7 @@ function _imgCacheClear(id) {
 
 // ── Fetch helpers ──────────────────────────────────────────────────────────
 async function apiFetch(path, opts = {}) {
-  const baseUrl = window.APP_BASE || '';
+  const baseUrl = document.documentElement.dataset.base || '';
   const r = await fetch(baseUrl + path, {
     credentials: 'same-origin',
     ...opts,
@@ -293,10 +294,10 @@ function showMainImg(index) {
   document.getElementById('mp-next').style.display = show ? 'flex' : 'none';
 
   const pinBtn = document.getElementById('btn-pin');
-  pinBtn.style.display = '';
+  pinBtn.style.display = _isAdmin() ? '' : 'none';
   pinBtn.classList.toggle('active', !!img.is_pinned);
   pinBtn.textContent = img.is_pinned ? '★ Fixada como capa' : '★ Fixar como capa';
-  document.getElementById('btn-del-img').style.display = '';
+  document.getElementById('btn-del-img').style.display = _isAdmin() ? '' : 'none';
 
   document.getElementById('img-tip').style.display = '';
   modalImgIndex = index;
@@ -321,7 +322,7 @@ function buildThumbs() {
     t.dataset.index = i;
     t.innerHTML = `
       <img src="${escapeHtml(img.url)}" alt="" loading="lazy">
-      <button class="thumb-del" title="Remover esta foto" onclick="event.stopPropagation();deleteThumbImg(${img.id})">✕</button>
+      ${_isAdmin() ? `<button class="thumb-del" title="Remover esta foto" data-action="delete-thumb-img" data-img-id="${img.id}">✕</button>` : ''}
     `;
     t.addEventListener('click', () => showMainImg(i));
     strip.appendChild(t);
@@ -402,8 +403,8 @@ async function openModal(id) {
   document.getElementById('img-tip').style.display   = 'none';
   document.getElementById('btn-pin').style.display        = 'none';
   document.getElementById('btn-del-img').style.display    = 'none';
-  document.getElementById('btn-search-imgs').style.display  = '';
-  document.getElementById('catalog-img-add').style.display  = '';
+  document.getElementById('btn-search-imgs').style.display  = _isAdmin() ? '' : 'none';
+  document.getElementById('catalog-img-add').style.display  = _isAdmin() ? '' : 'none';
   document.getElementById('candidates-area').style.display  = 'none';
   document.getElementById('catalog-img-file').value = '';
   document.getElementById('catalog-img-url').value  = '';
@@ -495,25 +496,37 @@ async function openModal(id) {
     buildThumbs();
     showMainImg(0);
     document.getElementById('btn-refresh').style.display = '';
-  } else {
-    // Sem imagens — busca automática
+  } else if (_isAdmin()) {
+    // Sem imagens — busca automática (grava no banco, exige admin no backend)
     document.getElementById('loader-txt').textContent = 'Buscando imagens…';
     setBadge('🔍 Buscando…', 'isb-searching');
-    const result = await apiFetch('/api/products/' + id + '/search-images');
-    if (gen !== _modalGen) return;
-    modalImages = result.images || [];
-    document.getElementById('ph-loader').classList.add('off');
-    if (modalImages.length) {
-      _imgCacheSet(id, modalImages);
-      setBadge('✓ Imagens', 'isb-google');
+    try {
+      const result = await apiFetch('/api/products/' + id + '/search-images');
+      if (gen !== _modalGen) return;
+      modalImages = result.images || [];
+      document.getElementById('ph-loader').classList.add('off');
+      if (modalImages.length) {
+        _imgCacheSet(id, modalImages);
+        setBadge('✓ Imagens', 'isb-google');
+        buildThumbs();
+        showMainImg(0);
+        document.getElementById('btn-refresh').style.display = '';
+      } else {
+        setBadge('Sem fotos', 'isb-none');
+        buildThumbs();
+        document.getElementById('btn-refresh').style.display = '';
+      }
+    } catch (err) {
+      if (gen !== _modalGen) return;
+      document.getElementById('ph-loader').classList.add('off');
+      setBadge('Erro', 'isb-none');
       buildThumbs();
-      showMainImg(0);
-      document.getElementById('btn-refresh').style.display = '';
-    } else {
-      setBadge('Sem fotos', 'isb-none');
-      buildThumbs();
-      document.getElementById('btn-refresh').style.display = '';
     }
+  } else {
+    // Visitante sem permissão de gravar imagens — não tenta buscar, só informa que não há foto
+    document.getElementById('ph-loader').classList.add('off');
+    setBadge('Sem fotos', 'isb-none');
+    buildThumbs();
   }
 }
 
@@ -640,14 +653,14 @@ function _renderCatalogCandidates(images) {
   }
   strip.innerHTML = images.map(img => `
     <div class="cand-tile">
-      <img src="${escapeHtml(img.url)}" loading="lazy" onerror="this.parentElement.style.display='none'" data-url="${escapeHtml(img.url)}">
+      <img src="${escapeHtml(img.url)}" loading="lazy" data-url="${escapeHtml(img.url)}">
       <span class="cand-tile-use">Usar</span>
-      <button class="cand-tile-del" title="Não é esse produto"
-              onclick="this.closest('.cand-tile').remove()">✕</button>
+      <button class="cand-tile-del" title="Não é esse produto" data-action="remove-tile">✕</button>
     </div>
   `).join('');
   strip.querySelectorAll('img[data-url]').forEach(imgEl => {
     imgEl.addEventListener('click', () => selectCatalogCandidate(imgEl.dataset.url));
+    imgEl.addEventListener('error', () => { imgEl.parentElement.style.display = 'none'; }, { once: true });
   });
   area.style.display = 'block';
 }
@@ -686,7 +699,7 @@ async function uploadCatalogFile() {
   const formData = new FormData();
   formData.append('image', file);
   try {
-    const res = await fetch((window.APP_BASE || '') + `/api/products/${modalProductId}/images/upload`, {
+    const res = await fetch((document.documentElement.dataset.base || '') + `/api/products/${modalProductId}/images/upload`, {
       method: 'POST', credentials: 'same-origin', body: formData,
     });
     const data = await res.json();
@@ -804,6 +817,25 @@ document.getElementById('lm').addEventListener('click', () => fetchProducts(curr
 document.getElementById('mcls').addEventListener('click', () => document.getElementById('mo').classList.remove('open'));
 document.getElementById('mo').addEventListener('click', e => {
   if (e.target === document.getElementById('mo')) document.getElementById('mo').classList.remove('open');
+});
+
+// ── Delegated actions (substitui onclick inline — necessário pra CSP) ──────
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-action]');
+  if (!el) return;
+  switch (el.dataset.action) {
+    case 'logout': logout(); break;
+    case 'close-candidates': document.getElementById('candidates-area').style.display = 'none'; break;
+    case 'upload-catalog-file': uploadCatalogFile(); break;
+    case 'add-catalog-url': addCatalogUrl(); break;
+    case 'delete-thumb-img':
+      e.stopPropagation();
+      deleteThumbImg(Number(el.dataset.imgId));
+      break;
+    case 'remove-tile':
+      el.closest('.cand-tile').remove();
+      break;
+  }
 });
 
 // ── Toast ──────────────────────────────────────────────────────────────────
