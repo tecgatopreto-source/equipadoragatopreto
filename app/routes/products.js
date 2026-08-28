@@ -665,15 +665,13 @@ router.post('/:id/images/upload', requireAdmin, imgUpload.single('image'), async
       try { fs.unlinkSync(validPath); } catch {}
       return res.status(404).json({ error: 'Produto não encontrado.' });
     }
-    const url = `/uploads/product-images/${req.file.filename}`;
-    await pool.query(`DELETE FROM ${_s}product_images WHERE product_id = $1 AND is_manual = 0`, [req.params.id]);
-
     const { rows: countRows } = await pool.query(`SELECT COUNT(*) FROM ${_s}product_images WHERE product_id=$1`, [req.params.id]);
     if (parseInt(countRows[0].count) >= 4) {
       try { fs.unlinkSync(validPath); } catch {}
-      return res.status(400).json({ error: 'Limite de 4 imagens por produto atingido' });
+      return res.status(400).json({ error: 'Limite de 4 imagens por produto atingido. Remova uma foto antes de adicionar outra.' });
     }
 
+    const url = `/uploads/product-images/${req.file.filename}`;
     await pool.query(`UPDATE ${_s}product_images SET is_pinned = 0 WHERE product_id = $1`, [req.params.id]);
     const { rows: ins } = await pool.query(
       `INSERT INTO ${_s}product_images (product_id, url, is_pinned, is_manual) VALUES ($1, $2, 1, 1) RETURNING id`,
@@ -726,7 +724,7 @@ router.post('/:id/images', requireAdmin, async (req, res) => {
 
     const { rows: countRows } = await pool.query(`SELECT COUNT(*) FROM ${_s}product_images WHERE product_id=$1`, [req.params.id]);
     if (parseInt(countRows[0].count) >= 4) {
-      return res.status(400).json({ error: 'Limite de 4 imagens por produto atingido' });
+      return res.status(400).json({ error: 'Limite de 4 imagens por produto atingido. Remova uma foto antes de adicionar outra.' });
     }
 
     if (is_pinned) {
