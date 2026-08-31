@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const jwt    = require('jsonwebtoken');
-const { JWT_SECRET, COOKIE_NAME, COOKIE_OPTS } = require('../middleware/auth');
+const { JWT_SECRET, COOKIE_NAME, COOKIE_OPTS, signToken, revokeToken } = require('../middleware/auth');
 const { loginLimiter } = require('../middleware/rateLimit');
 
 const SUPABASE_URL      = process.env.SUPABASE_URL;
@@ -62,11 +62,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 
     const role = perfisData[0].role || 'conferente';
 
-    const token = jwt.sign(
-      { id: u.id, username: u.email, role },
-      JWT_SECRET,
-      { expiresIn: '12h', algorithm: 'HS256' }
-    );
+    const token = signToken({ id: u.id, username: u.email, role });
 
     res.cookie(COOKIE_NAME, token, COOKIE_OPTS);
     res.json({ user: { id: u.id, username: u.email, role } });
@@ -115,11 +111,7 @@ router.post('/sso', loginLimiter, async (req, res) => {
 
     const role = perfisData[0].role || 'conferente';
 
-    const token = jwt.sign(
-      { id: u.id, username: u.email, role },
-      JWT_SECRET,
-      { expiresIn: '12h', algorithm: 'HS256' }
-    );
+    const token = signToken({ id: u.id, username: u.email, role });
 
     res.cookie(COOKIE_NAME, token, COOKIE_OPTS);
     res.json({ user: { id: u.id, username: u.email, role } });
@@ -130,7 +122,16 @@ router.post('/sso', loginLimiter, async (req, res) => {
 });
 
 // POST /api/auth/logout
-router.post('/logout', (req, res) => {
+router.post('/logout', async (req, res) => {
+  const token = req.cookies && req.cookies[COOKIE_NAME];
+  if (token) {
+    try {
+      const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+      await revokeToken(payload.jti, payload.exp);
+    } catch (_) {
+      // Token já inválido/expirado — nada a revogar.
+    }
+  }
   res.clearCookie(COOKIE_NAME);
   res.json({ ok: true });
 });

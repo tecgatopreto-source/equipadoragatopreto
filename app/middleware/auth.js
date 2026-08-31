@@ -1,4 +1,6 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const { getDb, DB_SCHEMA } = require('../db/schema');
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) throw new Error('JWT_SECRET env var não definida');
 
@@ -14,21 +16,49 @@ const COOKIE_OPTS = {
   secure: false,
 };
 
-function _refreshCookie(res, payload) {
-  const newToken = jwt.sign(
-    { id: payload.id, username: payload.username, role: payload.role },
+function signToken({ id, username, role }) {
+  return jwt.sign(
+    { id, username, role, jti: crypto.randomUUID() },
     JWT_SECRET,
     { expiresIn: '12h', algorithm: 'HS256' }
   );
-  res.cookie(COOKIE_NAME, newToken, COOKIE_OPTS);
 }
 
-function authenticate(req, res, next) {
+function _refreshCookie(res, payload) {
+  res.cookie(COOKIE_NAME, signToken(payload), COOKIE_OPTS);
+}
+
+async function isRevoked(jti) {
+  if (!jti) return false; // tokens emitidos antes desta mudança não têm jti
+  const { rows } = await getDb().query(
+    `SELECT 1 FROM "${DB_SCHEMA}".revoked_tokens WHERE jti = $1`,
+    [jti]
+  );
+  return rows.length > 0;
+}
+
+async function revokeToken(jti, exp) {
+  if (!jti) return;
+  const db = getDb();
+  await db.query(
+    `INSERT INTO "${DB_SCHEMA}".revoked_tokens (jti, expires_at) VALUES ($1, to_timestamp($2)) ON CONFLICT (jti) DO NOTHING`,
+    [jti, exp]
+  );
+  // Limpeza oportunista: remove revogações cujo token já expiraria de qualquer forma.
+  db.query(`DELETE FROM "${DB_SCHEMA}".revoked_tokens WHERE expires_at < now()`).catch(() => {});
+}
+
+async function authenticate(req, res, next) {
   const token = req.cookies && req.cookies[COOKIE_NAME];
   if (!token) return res.status(401).json({ error: 'Token não fornecido' });
 
   try {
-    req.user = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+    if (await isRevoked(payload.jti)) {
+      res.clearCookie(COOKIE_NAME);
+      return res.status(401).json({ error: 'Sessão encerrada' });
+    }
+    req.user = payload;
     _refreshCookie(res, req.user); // sliding window
     next();
   } catch {
@@ -46,4 +76,4 @@ function requireAdmin(req, res, next) {
   });
 }
 
-module.exports = { authenticate, requireAdmin, JWT_SECRET, COOKIE_NAME, COOKIE_OPTS };
+module.exports = { authenticate, requireAdmin, signToken, revokeToken, JWT_SECRET, COOKIE_NAME, COOKIE_OPTS };
