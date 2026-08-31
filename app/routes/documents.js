@@ -61,9 +61,8 @@ router.post("/upload/grupos", requireAdmin, async (req, res) => {
     const parsed = await pdfParse(req.file.buffer);
     rawText = parsed.text;
   } catch (err) {
-    return res
-      .status(422)
-      .json({ error: "Não foi possível ler o PDF: " + err.message });
+    console.error("[upload/grupos] Erro ao ler PDF:", err);
+    return res.status(422).json({ error: "Não foi possível ler o PDF." });
   }
 
   const pool = getDb();
@@ -72,9 +71,8 @@ router.post("/upload/grupos", requireAdmin, async (req, res) => {
     const { rows } = await pool.query(`SELECT id FROM ${_s}products`);
     productSet = new Set(rows.map((r) => r.id));
   } catch (err) {
-    return res
-      .status(500)
-      .json({ error: "Erro ao carregar produtos: " + err.message });
+    console.error("[upload/grupos] Erro ao carregar produtos:", err);
+    return res.status(500).json({ error: "Erro ao carregar produtos." });
   }
 
   const groups = parseGrupos(rawText, productSet);
@@ -124,10 +122,8 @@ router.post(
       );
       documentId = rows[0].id;
     } catch (err) {
-      console.error("[upload] Erro ao registrar documento:", err.message);
-      return res
-        .status(500)
-        .json({ error: "Erro ao registrar documento: " + err.message });
+      console.error("[upload] Erro ao registrar documento:", err);
+      return res.status(500).json({ error: "Erro ao registrar documento." });
     }
 
     // 3. Lê e parseia o PDF
@@ -136,9 +132,8 @@ router.post(
       const parsed = await pdfParse(req.file.buffer);
       rawText = parsed.text;
     } catch (err) {
-      return res
-        .status(422)
-        .json({ error: "Não foi possível ler o PDF: " + err.message });
+      console.error("[upload] Erro ao ler PDF:", err);
+      return res.status(422).json({ error: "Não foi possível ler o PDF." });
     }
 
     // 4. Carrega produtos e extrai dados do PDF
@@ -150,10 +145,8 @@ router.post(
       productMap = new Map(rows.map((p) => [p.id, p]));
       extracted = parsePdf(rawText, productMap, type);
     } catch (err) {
-      console.error("[upload] Erro ao carregar produtos:", err.message);
-      return res
-        .status(500)
-        .json({ error: "Erro ao carregar produtos: " + err.message });
+      console.error("[upload] Erro ao carregar produtos:", err);
+      return res.status(500).json({ error: "Erro ao carregar produtos." });
     }
 
     // 5. Salva no banco — bulk upsert único (evita timeout por N queries)
@@ -219,10 +212,8 @@ router.post(
 
         created = extracted.filter((i) => !productMap.has(i.productId)).length;
       } catch (err) {
-        console.error("[upload] Erro no bulk upsert:", err.message);
-        return res
-          .status(500)
-          .json({ error: "Erro ao salvar produtos: " + err.message });
+        console.error("[upload] Erro no bulk upsert:", err);
+        return res.status(500).json({ error: "Erro ao salvar produtos." });
       }
 
       const qtyField =
@@ -337,7 +328,8 @@ router.get("/history", requireAdmin, async (req, res) => {
     `);
     res.json({ history: rows });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('GET /documents/history error:', err);
+    res.status(500).json({ error: 'Erro ao buscar histórico.' });
   }
 });
 
@@ -512,7 +504,8 @@ router.get("/", requireAdmin, async (req, res) => {
     );
     res.json({ documents: rows });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('GET /documents error:', err);
+    res.status(500).json({ error: 'Erro ao buscar documentos.' });
   }
 });
 

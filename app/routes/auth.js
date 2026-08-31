@@ -67,8 +67,8 @@ router.post('/login', loginLimiter, async (req, res) => {
     res.cookie(COOKIE_NAME, token, COOKIE_OPTS);
     res.json({ user: { id: u.id, username: u.email, role } });
   } catch (err) {
-    console.error('[auth] login error:', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('[auth] login error:', err);
+    res.status(500).json({ error: 'Erro ao autenticar.' });
   }
 });
 
@@ -116,8 +116,8 @@ router.post('/sso', loginLimiter, async (req, res) => {
     res.cookie(COOKIE_NAME, token, COOKIE_OPTS);
     res.json({ user: { id: u.id, username: u.email, role } });
   } catch (err) {
-    console.error('[auth] sso error:', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('[auth] sso error:', err);
+    res.status(500).json({ error: 'Erro ao autenticar.' });
   }
 });
 

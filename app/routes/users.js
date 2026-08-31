@@ -18,8 +18,8 @@ router.get('/', requireAdmin, async (_req, res) => {
     );
     res.json({ users: rows });
   } catch (err) {
-    console.error('[users] list error:', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('[users] list error:', err);
+    res.status(500).json({ error: 'Erro ao listar usuários.' });
   }
 });
 
@@ -40,8 +40,8 @@ router.patch('/:userId/role', requireAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Usuário não encontrado neste sistema' });
     res.json({ ok: true });
   } catch (err) {
-    console.error('[users] role update error:', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('[users] role update error:', err);
+    res.status(500).json({ error: 'Erro ao atualizar papel do usuário.' });
   }
 });
 

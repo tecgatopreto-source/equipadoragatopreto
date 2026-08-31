@@ -266,7 +266,8 @@ router.get('/', async (req, res) => {
     cache.set(cacheKey, result, TTL_PRODUCTS);
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('GET /products error:', err);
+    res.status(500).json({ error: 'Erro ao buscar produtos.' });
   }
 });
 
@@ -289,7 +290,8 @@ router.get('/stats', async (_req, res) => {
     cache.set('stats', result, TTL_STATS);
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('GET /products/stats error:', err);
+    res.status(500).json({ error: 'Erro ao buscar estatísticas.' });
   }
 });
 
@@ -309,7 +311,8 @@ router.get('/action-stats', authenticate, async (_req, res) => {
     cache.set('action-stats', result, TTL_ACTION);
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('GET /products/action-stats error:', err);
+    res.status(500).json({ error: 'Erro ao buscar estatísticas de ações.' });
   }
 });
 
@@ -361,7 +364,8 @@ router.get('/report', authenticate, async (req, res) => {
 
     res.json({ total: rows.length, rows });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('GET /products/report error:', err);
+    res.status(500).json({ error: 'Erro ao buscar relatório.' });
   }
 });
 
@@ -419,8 +423,8 @@ router.get('/deactivate-report', authenticate, async (req, res) => {
 
     res.json({ total: rows.length, rows });
   } catch (err) {
-    console.error('[deactivate-report] ERRO:', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('[deactivate-report] ERRO:', err);
+    res.status(500).json({ error: 'Erro ao buscar relatório de desativação.' });
   }
 });
 
@@ -438,7 +442,8 @@ router.patch('/:id/resolve-alert', requireAdmin, async (req, res) => {
     await _invalidateAll(pool);
     res.json({ message: 'Alerta resolvido' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('PATCH /products/:id/resolve-alert error:', err);
+    res.status(500).json({ error: 'Erro ao resolver alerta.' });
   }
 });
 
@@ -455,7 +460,8 @@ router.get('/:id', async (req, res) => {
     );
     res.json({ ...pRows[0], images });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('GET /products/:id error:', err);
+    res.status(500).json({ error: 'Erro ao buscar produto.' });
   }
 });
 
@@ -479,7 +485,8 @@ router.post('/', requireAdmin, async (req, res) => {
     await _invalidateAll(pool);
     res.status(201).json({ message: 'Produto criado', id });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('POST /products error:', err);
+    res.status(500).json({ error: 'Erro ao criar produto.' });
   }
 });
 
@@ -575,7 +582,8 @@ router.put('/:id', requireAdmin, async (req, res) => {
     await _invalidateAll(pool);
     res.json({ message: 'Produto atualizado', changed });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('PUT /products/:id error:', err);
+    res.status(500).json({ error: 'Erro ao atualizar produto.' });
   }
 });
 
@@ -633,7 +641,8 @@ router.patch('/:id/stock-real', authenticate, async (req, res) => {
     await _invalidateAll(pool);
     res.json({ message: 'Estoque real atualizado', stock_real: realVal, stock_mgmt: newStockMgmt });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('PATCH /products/:id/stock-real error:', err);
+    res.status(500).json({ error: 'Erro ao atualizar estoque real.' });
   }
 });
 
@@ -646,7 +655,8 @@ router.delete('/:id', requireAdmin, async (req, res) => {
     await _invalidateAll(pool);
     res.json({ message: 'Produto removido' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('DELETE /products/:id error:', err);
+    res.status(500).json({ error: 'Erro ao remover produto.' });
   }
 });
 
@@ -680,7 +690,8 @@ router.post('/:id/images/upload', requireAdmin, imgUpload.single('image'), async
     _invalidateImages();
     res.status(201).json({ id: ins[0].id, url, message: 'Imagem salva' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('POST /products/:id/images/upload error:', err);
+    res.status(500).json({ error: 'Erro ao salvar imagem.' });
   }
 });
 
@@ -738,7 +749,8 @@ router.post('/:id/images', requireAdmin, async (req, res) => {
     _invalidateImages();
     res.status(201).json({ id: ins[0].id, message: 'Imagem salva' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('POST /products/:id/images error:', err);
+    res.status(500).json({ error: 'Erro ao salvar imagem.' });
   }
 });
 
@@ -755,7 +767,8 @@ router.put('/:id/images/:imgId/pin', requireAdmin, async (req, res) => {
     _invalidateImages();
     res.json({ message: 'Imagem fixada' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('PUT /products/:id/images/:imgId/pin error:', err);
+    res.status(500).json({ error: 'Erro ao fixar imagem.' });
   }
 });
 
@@ -783,7 +796,8 @@ router.delete('/:id/images/:imgId', requireAdmin, async (req, res) => {
     _invalidateImages();
     res.json({ message: 'Imagem removida' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('DELETE /products/:id/images/:imgId error:', err);
+    res.status(500).json({ error: 'Erro ao remover imagem.' });
   }
 });
 
@@ -795,7 +809,8 @@ router.delete('/:id/images', requireAdmin, async (req, res) => {
     _invalidateImages();
     res.json({ message: 'Imagens removidas — próxima abertura buscará novamente' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('DELETE /products/:id/images error:', err);
+    res.status(500).json({ error: 'Erro ao remover imagens.' });
   }
 });
 
@@ -824,7 +839,8 @@ router.get('/:id/search-images', _freshOnly(imageSearchLimiter), async (req, res
       cache.set(cacheKey, urls, 5 * 60 * 1000);
       return res.json({ images: urls.map(url => ({ url })), source: 'fresh' });
     } catch (err) {
-      return res.status(502).json({ error: err.message, source: 'error' });
+      console.error('GET /products/:id/search-images (fresh) error:', err);
+      return res.status(502).json({ error: 'Erro ao buscar imagens.', source: 'error' });
     }
   }
 
@@ -858,7 +874,8 @@ async function _autoSaveSearchImages(req, res) {
     res.json({ images, source: 'auto' });
   } catch (err) {
     _searching.delete(req.params.id);
-    res.status(502).json({ error: err.message, source: 'error' });
+    console.error('search-images (auto-save) error:', err);
+    res.status(502).json({ error: 'Erro ao buscar imagens.', source: 'error' });
   }
 }
 
