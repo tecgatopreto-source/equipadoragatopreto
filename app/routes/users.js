@@ -32,12 +32,20 @@ router.patch('/:userId/role', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Role inválido. Use: admin ou conferente' });
 
   try {
-    const { rowCount } = await getDb().query(
+    const { rows: prevRows } = await getDb().query(
+      `SELECT role FROM public.perfis WHERE user_id = $1 AND sistema = $2`,
+      [userId, SISTEMA]
+    );
+    if (!prevRows[0])
+      return res.status(404).json({ error: 'Usuário não encontrado neste sistema' });
+    const prevRole = prevRows[0].role;
+
+    await getDb().query(
       `UPDATE public.perfis SET role = $1 WHERE user_id = $2 AND sistema = $3`,
       [role, userId, SISTEMA]
     );
-    if (rowCount === 0)
-      return res.status(404).json({ error: 'Usuário não encontrado neste sistema' });
+
+    console.warn(`[users] role alterada por admin=${req.user.username} (${req.user.id}): user=${userId} ${prevRole} -> ${role}`);
     res.json({ ok: true });
   } catch (err) {
     console.error('[users] role update error:', err);

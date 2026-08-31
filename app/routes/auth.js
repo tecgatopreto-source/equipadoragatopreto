@@ -38,6 +38,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     const data = await r.json();
 
     if (!r.ok) {
+      console.warn(`[auth] login falhou (invalid_credentials): email=${email} ip=${req.ip}`);
       return res.status(401).json({ error: 'invalid_credentials' });
     }
 
@@ -56,6 +57,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     const perfisData = await perfisRes.json();
 
     if (!Array.isArray(perfisData) || perfisData.length === 0) {
+      console.warn(`[auth] login falhou (no_access): email=${email} ip=${req.ip}`);
       supabaseLogout(accessToken);
       return res.status(401).json({ error: 'no_access' });
     }
@@ -89,6 +91,7 @@ router.post('/sso', loginLimiter, async (req, res) => {
     });
 
     if (!r.ok) {
+      console.warn(`[auth] sso falhou (invalid_token): ip=${req.ip}`);
       return res.status(401).json({ error: 'invalid_token' });
     }
 
@@ -106,6 +109,7 @@ router.post('/sso', loginLimiter, async (req, res) => {
     const perfisData = await perfisRes.json();
 
     if (!Array.isArray(perfisData) || perfisData.length === 0) {
+      console.warn(`[auth] sso falhou (no_access): email=${u.email} ip=${req.ip}`);
       return res.status(401).json({ error: 'no_access' });
     }
 
