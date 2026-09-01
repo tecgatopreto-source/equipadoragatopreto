@@ -71,7 +71,6 @@ SVG category icons live in `svg/` and are served at `/svg/`. The frontend picks 
 - `public/login.html` — login form
 
 **Frontend JS modules** (`public/js/`):
-- `session.js` — client-side idle timeout: 1 hour of no interaction triggers logout (tracks activity via DOM events, checks every 60 s). Call `window._sessionInit(onExpire)` from each authenticated page.
 - `product-category-svg.js` — maps product name keywords to SVG filenames in `/svg/`
 - `admin.js`, `conferente.js`, `index.js`, `login.js` — page-specific logic
 
@@ -96,7 +95,7 @@ Login is a two-step server-side flow in `routes/auth.js`:
 
 **Sliding expiration:** `middleware/auth.js` re-issues the cookie on every authenticated request, resetting the 12 h window. Users are logged out if they make no API request for 12 consecutive hours.
 
-**Client-side idle timeout:** `public/js/session.js` logs out the user after 1 hour of inactivity (no clicks, keystrokes, etc.), independent of the server-side cookie expiry.
+**Inactivity/session-length limits:** enforced at the Supabase Auth level (`[auth.sessions]`, shared by all 6 Gato Preto systems), not per-system — see achado #46 da auditoria. There used to be a `public/js/session.js` client-side 1h idle timer here, but it was never wired up to any page (`window._sessionInit` was never called) and was removed as dead code once the Supabase-level policy became the single source of truth.
 
 **Logout:** `POST /api/auth/logout` clears the cookie server-side. The frontend also removes `gp_user` from localStorage.
 
