@@ -487,7 +487,7 @@ async function openModal(id) {
     setBadge('⚡ Cache', 'isb-db');
     buildThumbs();
     showMainImg(0);
-    document.getElementById('btn-refresh').style.display = '';
+    document.getElementById('btn-refresh').style.display = _isAdmin() ? '' : 'none';
   } else if (p.images && p.images.length) {
     modalImages = p.images;
     _imgCacheSet(id, modalImages);
@@ -495,9 +495,10 @@ async function openModal(id) {
     setBadge('⚡ Cache', 'isb-db');
     buildThumbs();
     showMainImg(0);
-    document.getElementById('btn-refresh').style.display = '';
-  } else if (_isAdmin()) {
-    // Sem imagens — busca automática (grava no banco, exige admin no backend)
+    document.getElementById('btn-refresh').style.display = _isAdmin() ? '' : 'none';
+  } else {
+    // Sem imagens — busca automática e grava no banco (endpoint público desde
+    // que o produto não tenha nenhuma foto ainda; persiste pra quem ver depois)
     document.getElementById('loader-txt').textContent = 'Buscando imagens…';
     setBadge('🔍 Buscando…', 'isb-searching');
     try {
@@ -510,11 +511,11 @@ async function openModal(id) {
         setBadge('✓ Imagens', 'isb-google');
         buildThumbs();
         showMainImg(0);
-        document.getElementById('btn-refresh').style.display = '';
+        document.getElementById('btn-refresh').style.display = _isAdmin() ? '' : 'none';
       } else {
         setBadge('Sem fotos', 'isb-none');
         buildThumbs();
-        document.getElementById('btn-refresh').style.display = '';
+        document.getElementById('btn-refresh').style.display = _isAdmin() ? '' : 'none';
       }
     } catch (err) {
       if (gen !== _modalGen) return;
@@ -522,11 +523,6 @@ async function openModal(id) {
       setBadge('Erro', 'isb-none');
       buildThumbs();
     }
-  } else {
-    // Visitante sem permissão de gravar imagens — não tenta buscar, só informa que não há foto
-    document.getElementById('ph-loader').classList.add('off');
-    setBadge('Sem fotos', 'isb-none');
-    buildThumbs();
   }
 }
 

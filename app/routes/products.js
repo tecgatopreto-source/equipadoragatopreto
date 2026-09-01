@@ -8,12 +8,6 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 const cache = require('../lib/cache');
 const { imageSearchLimiter } = require('../middleware/rateLimit');
 
-// Só aplica o rate-limit apertado no modo ?fresh=1 (público, custo real por
-// chamada) — o modo auto-save já é protegido por requireAdmin logo abaixo.
-function _freshOnly(mw) {
-  return (req, res, next) => (req.query.fresh === '1' ? mw(req, res, next) : next());
-}
-
 const PROD_IMG_DIR = path.join(
   process.env.UPLOAD_DIR || path.join(__dirname, '..', 'uploads'),
   'product-images'
@@ -815,11 +809,12 @@ router.delete('/:id/images', requireAdmin, async (req, res) => {
 });
 
 // ── GET /api/products/:id/search-images ──────────────────────────────────
-// Sem ?fresh=1 → retorna cache (se existir) ou busca+salva automaticamente (requer admin, grava no banco).
-// Com ?fresh=1  → busca sempre, retorna candidatas SEM salvar (público, só leitura).
+// Sem ?fresh=1 → retorna cache (se existir) ou busca+salva automaticamente. Público (visitante
+//   sem login já dispara isso ao abrir um produto sem foto) — rate-limited por IP.
+// Com ?fresh=1  → busca sempre, retorna candidatas SEM salvar (usado pelo picker manual do admin).
 const _searching = new Set();
 
-router.get('/:id/search-images', _freshOnly(imageSearchLimiter), async (req, res) => {
+router.get('/:id/search-images', imageSearchLimiter, async (req, res) => {
   const id    = req.params.id;
   const fresh = req.query.fresh === '1';
 
@@ -844,8 +839,10 @@ router.get('/:id/search-images', _freshOnly(imageSearchLimiter), async (req, res
     }
   }
 
-  // Modo auto-save: grava no banco — exige admin
-  return requireAdmin(req, res, () => _autoSaveSearchImages(req, res));
+  // Modo auto-save: grava no banco. Público — só roda quando o produto ainda não
+  // tem nenhuma imagem (checagem logo abaixo); um produto que já tem foto nunca
+  // é re-buscado por aqui, então não há como um visitante sobrescrever nada.
+  return _autoSaveSearchImages(req, res);
 });
 
 async function _autoSaveSearchImages(req, res) {
