@@ -512,6 +512,7 @@ async function openModal(id) {
         buildThumbs();
         showMainImg(0);
         document.getElementById('btn-refresh').style.display = _isAdmin() ? '' : 'none';
+        updateCardImg(id, modalImages.find(i => i.is_pinned)?.url || modalImages[0]?.url);
       } else {
         setBadge('Sem fotos', 'isb-none');
         buildThumbs();
