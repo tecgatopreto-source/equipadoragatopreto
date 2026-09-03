@@ -1,5 +1,8 @@
 // ── Auth ───────────────────────────────────────────────────────────────────
 const BASE = document.documentElement.dataset.base || '';
+function csrfToken() {
+  return document.cookie.match(/(?:^|; )gp_csrf=([^;]*)/)?.[1] || '';
+}
 let user  = JSON.parse(localStorage.getItem('gp_user') || 'null');
 function _isAdmin() { return !!(user && user.role === 'admin'); }
 
@@ -79,7 +82,7 @@ async function apiFetch(path, opts = {}) {
   const r = await fetch(baseUrl + path, {
     credentials: 'same-origin',
     ...opts,
-    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken(), ...(opts.headers || {}) },
   });
   let data;
   try { data = await r.json(); } catch (_) { data = {}; }
@@ -697,7 +700,7 @@ async function uploadCatalogFile() {
   formData.append('image', file);
   try {
     const res = await fetch((document.documentElement.dataset.base || '') + `/api/products/${modalProductId}/images/upload`, {
-      method: 'POST', credentials: 'same-origin', body: formData,
+      method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': csrfToken() }, body: formData,
     });
     const data = await res.json();
     if (!res.ok) { showToast('Erro: ' + (data.error || 'falha no upload')); return; }

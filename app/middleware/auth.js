@@ -15,6 +15,7 @@ const COOKIE_OPTS = {
   // condição. Pendência de segurança: religar quando HTTPS estiver disponível.
   secure: false,
 };
+const methodsRequiringCsrf = ['post', 'put', 'patch', 'delete'];
 
 function signToken({ id, username, role }) {
   return jwt.sign(
@@ -26,6 +27,10 @@ function signToken({ id, username, role }) {
 
 function _refreshCookie(res, payload) {
   res.cookie(COOKIE_NAME, signToken(payload), COOKIE_OPTS);
+  const csrfToken = crypto.randomUUID();
+  res.cookie('gp_csrf', csrfToken, {  ... COOKIE_OPTS,
+    httpOnly: false,
+  }) // JS do SPA precisa ler o CSRF});
 }
 
 async function isRevoked(jti) {
@@ -59,6 +64,13 @@ async function authenticate(req, res, next) {
       return res.status(401).json({ error: 'Sessão encerrada' });
     }
     req.user = payload;
+    if (methodsRequiringCsrf.includes(req.method.toLowerCase())) {
+      const csrfCookie = req.cookies['gp_csrf'];
+      const csrfHeader = req.get('X-CSRF-Token');
+      if (!csrfCookie || csrfCookie !== csrfHeader) {
+        return res.status(403).json({ error: 'Token CSRF não fornecido' });
+      }
+    }
     _refreshCookie(res, req.user); // sliding window
     next();
   } catch {
@@ -76,4 +88,4 @@ function requireAdmin(req, res, next) {
   });
 }
 
-module.exports = { authenticate, requireAdmin, signToken, revokeToken, JWT_SECRET, COOKIE_NAME, COOKIE_OPTS };
+module.exports = { authenticate, requireAdmin, _refreshCookie, signToken, revokeToken, JWT_SECRET, COOKIE_NAME, COOKIE_OPTS };

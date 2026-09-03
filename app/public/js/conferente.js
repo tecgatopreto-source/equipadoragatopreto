@@ -1,6 +1,9 @@
 'use strict';
 
 const BASE = document.documentElement.dataset.base || '';
+function csrfToken() {
+  return document.cookie.match(/(?:^|; )gp_csrf=([^;]*)/)?.[1] || '';
+}
 /* ═══ STATE ══════════════════════════════════════════════════════════ */
 let products = [];
 let page     = 1;
@@ -277,7 +280,7 @@ async function saveProduct() {
     const res = await fetch(BASE + `/api/products/${encodeURIComponent(currentProduct.id)}/stock-real`, {
       method:  'PATCH',
       credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken() },
       body: JSON.stringify({ stock_real: parseFloat(rawVal) })
     });
 

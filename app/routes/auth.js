@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const jwt    = require('jsonwebtoken');
-const { JWT_SECRET, COOKIE_NAME, COOKIE_OPTS, signToken, revokeToken } = require('../middleware/auth');
+const { JWT_SECRET, COOKIE_NAME, revokeToken, _refreshCookie } = require('../middleware/auth');
 const { loginLimiter } = require('../middleware/rateLimit');
 
 const SUPABASE_URL      = process.env.SUPABASE_URL;
@@ -64,9 +64,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 
     const role = perfisData[0].role || 'conferente';
 
-    const token = signToken({ id: u.id, username: u.email, role });
-
-    res.cookie(COOKIE_NAME, token, COOKIE_OPTS);
+    _refreshCookie(res, { id: u.id, username: u.email, role });
     res.json({ user: { id: u.id, username: u.email, role } });
   } catch (err) {
     console.error('[auth] login error:', err);
@@ -115,9 +113,7 @@ router.post('/sso', loginLimiter, async (req, res) => {
 
     const role = perfisData[0].role || 'conferente';
 
-    const token = signToken({ id: u.id, username: u.email, role });
-
-    res.cookie(COOKIE_NAME, token, COOKIE_OPTS);
+    _refreshCookie(res, { id: u.id, username: u.email, role });
     res.json({ user: { id: u.id, username: u.email, role } });
   } catch (err) {
     console.error('[auth] sso error:', err);

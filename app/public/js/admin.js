@@ -10,6 +10,10 @@ if (!user || user.role !== "admin") {
 }
 document.getElementById("uname").textContent = user ? user.username : "";
 
+function csrfToken() {
+  return document.cookie.match(/(?:^|; )gp_csrf=([^;]*)/)?.[1] || "";
+}
+
 async function logout() {
   try {
     await fetch(BASE + "/api/auth/logout", {
@@ -98,7 +102,7 @@ async function api(method, path, body) {
   const res = await fetch(BASE + "/api" + path, {
     method,
     credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
     body: body ? JSON.stringify(body) : undefined,
   });
   let data;
@@ -615,6 +619,7 @@ async function uploadImageFile() {
   const res = await fetch(BASE + `/api/products/${editingId}/images/upload`, {
     method: "POST",
     credentials: "same-origin",
+    headers: { "X-CSRF-Token": csrfToken() },
     body: formData,
   });
   const data = await res.json();
@@ -1287,6 +1292,7 @@ async function _doUploadPdf(type, file) {
     res = await fetch(BASE + `/api/documents/upload/${type}`, {
       method: "POST",
       credentials: "same-origin",
+      headers: { "X-CSRF-Token": csrfToken() },
       body: form,
     });
     data = await res.json();
@@ -1415,6 +1421,7 @@ async function processGruposPdf(file) {
     res = await fetch(BASE + "/api/documents/upload/grupos", {
       method: "POST",
       credentials: "same-origin",
+      headers: { "X-CSRF-Token": csrfToken() },
       body: form,
     });
     data = await res.json();
