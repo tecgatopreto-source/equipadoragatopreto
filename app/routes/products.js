@@ -4,7 +4,7 @@ const fs      = require('fs');
 const multer  = require('multer');
 const { getDb, DB_SCHEMA } = require('../db/schema');
 const _s = `"${DB_SCHEMA}".`;
-const { authenticate, requireAdmin } = require('../middleware/auth');
+const { requireAdmin } = require('../middleware/auth');
 const cache = require('../lib/cache');
 const { imageSearchLimiter } = require('../middleware/rateLimit');
 
@@ -290,7 +290,7 @@ router.get('/stats', async (_req, res) => {
 });
 
 // ── GET /api/products/action-stats ────────────────────────────────────────
-router.get('/action-stats', authenticate, async (_req, res) => {
+router.get('/action-stats', requireAdmin, async (_req, res) => {
   const cached = cache.get('action-stats');
   if (cached) return res.json(cached);
   try {
@@ -311,7 +311,7 @@ router.get('/action-stats', authenticate, async (_req, res) => {
 });
 
 // ── GET /api/products/report ───────────────────────────────────────────────
-router.get('/report', authenticate, async (req, res) => {
+router.get('/report', requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
     const { sort = 'changed_at', order = 'desc', date_from = '', date_to = '' } = req.query;
@@ -364,7 +364,7 @@ router.get('/report', authenticate, async (req, res) => {
 });
 
 // ── GET /api/products/deactivate-report ───────────────────────────────────
-router.get('/deactivate-report', authenticate, async (req, res) => {
+router.get('/deactivate-report', requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
     const { sort = 'changed_at', order = 'desc', flag = '', date_from = '', date_to = '' } = req.query;
@@ -582,7 +582,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
 });
 
 // ── PATCH /api/products/:id/stock-real (conferente) ───────────────────────
-router.patch('/:id/stock-real', authenticate, async (req, res) => {
+router.patch('/:id/stock-real', requireAdmin, async (req, res) => {
   try {
     const pool = getDb();
     const { stock_real } = req.body;
