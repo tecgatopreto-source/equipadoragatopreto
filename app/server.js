@@ -12,6 +12,7 @@ const jwt = require('jsonwebtoken');
 });
 
 const app = express();
+app.disable('x-powered-by'); // segurança: não vaza versão do Express
 // Roda atrás de 1 proxy reverso (Nginx, mesmo host) — "1" faz o Express confiar
 // só no X-Forwarded-For/X-Forwarded-Proto desse hop, não da cadeia inteira.
 // Sem isso, req.ip sempre resolve pro IP do Nginx (127.0.0.1), enfraquecendo
