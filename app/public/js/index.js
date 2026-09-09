@@ -11,7 +11,7 @@ function renderAuthActions() {
   if (user) {
     const dashLink = user.role === 'admin'
       ? `<a class="btn-admin" href="${BASE}/admin">⚙ Admin</a>`
-      : user.role === 'conferente'
+      : user.role === 'user'
         ? `<a class="btn-admin" href="${BASE}/conferente">📋 Conferente</a>`
         : '';
     el.innerHTML = dashLink + `<button class="btn-login" data-action="logout">Sair (${user.username})</button>`;
