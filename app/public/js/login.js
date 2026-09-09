@@ -3,7 +3,7 @@ const BASE = document.documentElement.dataset.base || '';
 function redirectByRole(user) {
   localStorage.setItem('gp_user', JSON.stringify(user));
   const role = user.role;
-  window.location.href = role === 'admin' ? BASE + '/admin' : role === 'conferente' ? BASE + '/conferente' : BASE + '/';
+  window.location.href = role === 'admin' ? BASE + '/admin' : role === 'user' ? BASE + '/conferente' : BASE + '/';
 }
 
 // SSO: se existe a sessão Supabase compartilhada dos sistemas Gato Preto

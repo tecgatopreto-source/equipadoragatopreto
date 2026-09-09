@@ -1529,7 +1529,7 @@ async function loadUsers() {
           <select data-action="set-user-role" data-user-id="${escapeHtml(u.user_id)}"
                   style="border:1.5px solid var(--border2);border-radius:4px;padding:.35rem .55rem;font-size:.78rem;font-family:'Inter',sans-serif;background:var(--white);color:var(--text);cursor:pointer;width:100%">
             <option value="admin"      ${u.role === "admin" ? "selected" : ""}>Admin</option>
-            <option value="conferente" ${u.role === "conferente" ? "selected" : ""}>Conferente</option>
+            <option value="user" ${u.role === "user" ? "selected" : ""}>Conferente</option>
           </select>
         </td>
       </tr>`,

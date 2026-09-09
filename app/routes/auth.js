@@ -62,7 +62,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(401).json({ error: 'no_access' });
     }
 
-    const role = perfisData[0].role || 'conferente';
+    const role = perfisData[0].role || 'user';
 
     _refreshCookie(res, { id: u.id, username: u.email, role });
     res.json({ user: { id: u.id, username: u.email, role } });
@@ -111,7 +111,7 @@ router.post('/sso', loginLimiter, async (req, res) => {
       return res.status(401).json({ error: 'no_access' });
     }
 
-    const role = perfisData[0].role || 'conferente';
+    const role = perfisData[0].role || 'user';
 
     _refreshCookie(res, { id: u.id, username: u.email, role });
     res.json({ user: { id: u.id, username: u.email, role } });

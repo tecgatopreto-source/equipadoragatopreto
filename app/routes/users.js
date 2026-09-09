@@ -3,7 +3,7 @@ const { requireAdmin } = require('../middleware/auth');
 const { getDb } = require('../db/schema');
 
 const SISTEMA = 'CatalogoProdutos';
-const VALID_ROLES = ['admin', 'conferente'];
+const VALID_ROLES = ['admin', 'user'];
 
 // GET /api/users — lista quem tem acesso a este sistema
 router.get('/', requireAdmin, async (_req, res) => {
@@ -29,7 +29,7 @@ router.patch('/:userId/role', requireAdmin, async (req, res) => {
   const { role } = req.body || {};
 
   if (!VALID_ROLES.includes(role))
-    return res.status(400).json({ error: 'Role inválido. Use: admin ou conferente' });
+    return res.status(400).json({ error: 'Role inválido. Use: admin ou user' });
 
   try {
     const { rows: prevRows } = await getDb().query(
