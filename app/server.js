@@ -94,7 +94,6 @@ app.get('/api/health', async (_, res) => {
 app.use('/api/auth',      require('./routes/auth'));
 app.use('/api/products',  require('./routes/products'));
 app.use('/api/documents', require('./routes/documents'));
-app.use('/api/users',     require('./routes/users'));
 
 // ── SPA Fallback (sempre na raiz) ─────────────────────────────────────────────
 function requireAuthPage(req, res, next) {
