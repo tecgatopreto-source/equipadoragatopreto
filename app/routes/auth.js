@@ -132,6 +132,24 @@ router.post('/logout', async (req, res) => {
       // Token já inválido/expirado — nada a revogar.
     }
   }
+
+  // Sair encerra a sessão da plataforma inteira, como nos demais sistemas Gato
+  // Preto (todos chamam signOut() no escopo global). O cliente manda o
+  // access_token do gp_session porque este app não tem cliente Supabase no
+  // navegador. Sem isto, apagar só o cookie daqui não adiantava: a tela de
+  // login readotava o gp_session e relogava a pessoa em seguida.
+  const { access_token: accessToken } = req.body || {};
+  if (accessToken) {
+    try {
+      await fetch(`${SUPABASE_URL}/auth/v1/logout?scope=global`, {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${accessToken}` },
+      });
+    } catch (_) {
+      // Supabase fora do ar — o cookie local já foi derrubado de qualquer forma.
+    }
+  }
+
   res.clearCookie(COOKIE_NAME);
   res.json({ ok: true });
 });

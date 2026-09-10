@@ -29,8 +29,29 @@ function init() {
   loadProducts(1);
 }
 
+// Sair encerra a sessão da plataforma (ver comentário equivalente no admin.js).
 async function logout() {
-  try { await fetch(BASE + '/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
+  let accessToken = null;
+  try {
+    accessToken = JSON.parse(localStorage.getItem('gp_session') || 'null')?.access_token || null;
+  } catch (_) {}
+  try {
+    await fetch(BASE + '/api/auth/logout', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(accessToken ? { access_token: accessToken } : {}),
+    });
+  } catch (_) {}
+  try { localStorage.removeItem('gp_session'); } catch (_) {}
+  localStorage.removeItem('gp_user');
+  window.location.replace(BASE + '/login');
+}
+
+// Sessão deste sistema expirada (401) — não é "sair da plataforma". Devolve
+// para o login sem tocar no gp_session, para o SSO reconstituir o acesso sem
+// pedir senha de novo.
+function sessaoExpirada() {
   localStorage.removeItem('gp_user');
   window.location.replace(BASE + '/login');
 }
@@ -80,7 +101,7 @@ async function loadProducts(p = 1) {
     const res  = await fetch(BASE + '/api/products?' + params, {
       credentials: 'same-origin',
     });
-    if (res.status === 401) { logout(); return; }
+    if (res.status === 401) { sessaoExpirada(); return; }
     const data = await res.json();
     products = data.products || [];
     total    = data.total    || 0;
@@ -284,7 +305,7 @@ async function saveProduct() {
       body: JSON.stringify({ stock_real: parseFloat(rawVal) })
     });
 
-    if (res.status === 401) { logout(); return; }
+    if (res.status === 401) { sessaoExpirada(); return; }
 
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Erro ao salvar');

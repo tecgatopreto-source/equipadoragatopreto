@@ -19,8 +19,21 @@ function renderAuthActions() {
     el.innerHTML = `<a class="btn-login" href="${BASE}/login.html">Entrar</a>`;
   }
 }
+// Sair encerra a sessão da plataforma (ver comentário equivalente no admin.js).
 async function logout() {
-  try { await fetch(BASE + '/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
+  let accessToken = null;
+  try {
+    accessToken = JSON.parse(localStorage.getItem('gp_session') || 'null')?.access_token || null;
+  } catch (_) {}
+  try {
+    await fetch(BASE + '/api/auth/logout', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(accessToken ? { access_token: accessToken } : {}),
+    });
+  } catch (_) {}
+  try { localStorage.removeItem('gp_session'); } catch (_) {}
   localStorage.removeItem('gp_user');
   location.reload();
 }
