@@ -14,13 +14,25 @@ function csrfToken() {
   return document.cookie.match(/(?:^|; )gp_csrf=([^;]*)/)?.[1] || "";
 }
 
+// Sair encerra a sessão da plataforma, não só a deste sistema: manda o
+// access_token do gp_session pro servidor revogar no Supabase e apaga a chave
+// aqui. Apagar é necessário mesmo com a revogação — o access_token é um JWT
+// com validade própria (~1h) e a tela de login voltaria a aceitá-lo, relogando
+// a pessoa logo depois de sair.
 async function logout() {
+  let accessToken = null;
+  try {
+    accessToken = JSON.parse(localStorage.getItem("gp_session") || "null")?.access_token || null;
+  } catch (_) {}
   try {
     await fetch(BASE + "/api/auth/logout", {
       method: "POST",
       credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(accessToken ? { access_token: accessToken } : {}),
     });
   } catch (_) {}
+  try { localStorage.removeItem("gp_session"); } catch (_) {}
   localStorage.removeItem("gp_user");
   location.href = BASE + "/login.html";
 }
