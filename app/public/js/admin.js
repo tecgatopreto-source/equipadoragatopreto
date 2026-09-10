@@ -47,7 +47,6 @@ const VALID_PAGES = [
   "report",
   "deactivate",
   "pdfs",
-  "users",
 ];
 
 function navigate(page) {
@@ -83,7 +82,6 @@ function navigate(page) {
     loadDeactivate();
   }
   if (page === "pdfs") loadImportHistory();
-  if (page === "users") loadUsers();
 }
 
 function openDeactivateFlag(flag) {
@@ -1508,56 +1506,6 @@ function resetGrupos() {
   document.getElementById("file-grupos").value = "";
 }
 
-// ── Users ──────────────────────────────────────────────────────────────────
-async function loadUsers() {
-  const tbody = document.getElementById("users-tbody");
-  tbody.innerHTML =
-    '<tr><td colspan="2" style="text-align:center;padding:2rem;color:var(--muted);font-size:.8rem">Carregando…</td></tr>';
-  try {
-    const data = await api("GET", "/users");
-    if (!data.users.length) {
-      tbody.innerHTML =
-        '<tr><td colspan="2" style="text-align:center;padding:2rem;color:var(--muted);font-size:.8rem">Nenhum usuário com acesso.</td></tr>';
-      return;
-    }
-    tbody.innerHTML = data.users
-      .map(
-        (u) => `
-      <tr>
-        <td style="font-size:.8rem">${escapeHtml(u.email)}</td>
-        <td>
-          <select data-action="set-user-role" data-user-id="${escapeHtml(u.user_id)}"
-                  style="border:1.5px solid var(--border2);border-radius:4px;padding:.35rem .55rem;font-size:.78rem;font-family:'Inter',sans-serif;background:var(--white);color:var(--text);cursor:pointer;width:100%">
-            <option value="admin"      ${u.role === "admin" ? "selected" : ""}>Admin</option>
-            <option value="user" ${u.role === "user" ? "selected" : ""}>Conferente</option>
-          </select>
-        </td>
-      </tr>`,
-      )
-      .join("");
-  } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="2" style="text-align:center;padding:2rem;color:var(--red);font-size:.8rem">❌ Erro: ${err.message}</td></tr>`;
-  }
-}
-
-async function setUserRole(userId, role, selectEl) {
-  const prev = selectEl.dataset.prev || selectEl.value;
-  selectEl.dataset.prev = role;
-  selectEl.disabled = true;
-  try {
-    await api("PATCH", `/users/${userId}/role`, { role });
-    showToast(
-      `✅ Perfil atualizado para ${role === "admin" ? "Admin" : "Conferente"}`,
-    );
-  } catch (err) {
-    showToast("Erro: " + err.message);
-    selectEl.value = prev;
-    selectEl.dataset.prev = prev;
-  } finally {
-    selectEl.disabled = false;
-  }
-}
-
 // ── Delegated actions (substitui onclick/onchange/ondrag inline — necessário pra CSP) ──
 document.addEventListener("click", (e) => {
   const el = e.target.closest("[data-action]");
@@ -1585,7 +1533,6 @@ document.addEventListener("click", (e) => {
     case "export-dact-xls": exportDeactivateXLS(); break;
     case "load-import-history": loadImportHistory(); break;
     case "close-preview": closePreview(); break;
-    case "load-users": loadUsers(); break;
     case "close-product-form": closeProductForm(); break;
     case "search-product-images": searchProductImages(); break;
     case "clear-product-images": clearProductImages(); break;
@@ -1613,7 +1560,6 @@ document.addEventListener("change", (e) => {
     case "load-deactivate": loadDeactivate(); break;
     case "handle-file-select": handleFileSelect(el.dataset.type); break;
     case "handle-grupos-file": handleGruposFile(); break;
-    case "set-user-role": setUserRole(el.dataset.userId, el.value, el); break;
   }
 });
 
