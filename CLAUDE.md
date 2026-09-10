@@ -33,7 +33,6 @@ Single-process Express app backed by **PostgreSQL via Supabase** (`pg` pool). Al
 - `routes/auth.js` — `POST /api/auth/login` (Supabase Auth + `public.perfis` gate + local JWT), `POST /api/auth/logout`, `GET /api/auth/me`
 - `routes/products.js` — full CRUD for products, image upload/management (file, URL, or automatic web search), reports
 - `routes/documents.js` — PDF upload and fiscal/gerencial import
-- `routes/users.js` — `GET /api/users` (list users with access to this system), `PATCH /api/users/:userId/role` (change role); both require admin
 
 **Health check:** `GET /api/health` — queries `COUNT(*) FROM products` and returns `{ ok, products }`.
 
@@ -66,7 +65,7 @@ SVG category icons live in `svg/` and are served at `/svg/`. The frontend picks 
 
 **Frontend pages** (all vanilla JS, no framework):
 - `public/index.html` — public product catalog
-- `public/admin.html` — admin dashboard (product management, reports, image management, user role management); requires `admin` role
+- `public/admin.html` — admin dashboard (product management, reports, image management); requires `admin` role
 - `public/conferente.html` — stock checker view; requires any authenticated user
 - `public/login.html` — login form
 
@@ -107,7 +106,11 @@ Login is a two-step server-side flow in `routes/auth.js`:
 
 ### User management
 
-Users are **created** and **deleted** exclusively via the **GestaoSistemas portal**, which writes to `public.perfis(user_id, sistema, role)`. This system's `routes/users.js` allows admins to **list** users and **change roles** (`admin` ↔ `conferente`), but not to create or remove access.
+Access to this system is managed **exclusively via the GestaoSistemas portal**, which writes to `public.perfis(user_id, sistema, role)`. That includes creating users, granting and revoking access, and changing roles. This system only *reads* `perfis` at login — it has no user-management screen or endpoint of its own.
+
+This was not always the case: `routes/users.js` used to let admins list users and change roles from inside the Catálogo. It was removed (tarefa 6.2 of `C:\dev\Auditoria\PLANO_ACAO_RBAC.md`) because it was a second write path into `public.perfis` — the table that controls access across all six systems — with its own copy of the valid-role list, which had already drifted from the central catalog `public.sistema_roles`.
+
+The roles this system recognises are `admin` and `user` (shown as "Conferente" in the portal's role selector, per `sistema_roles.label`).
 
 ### RLS
 
