@@ -88,4 +88,4 @@ function requireAdmin(req, res, next) {
   });
 }
 
-module.exports = { authenticate, requireAdmin, _refreshCookie, signToken, revokeToken, JWT_SECRET, COOKIE_NAME, COOKIE_OPTS };
+module.exports = { authenticate, requireAdmin, isRevoked, _refreshCookie, signToken, revokeToken, JWT_SECRET, COOKIE_NAME, COOKIE_OPTS };

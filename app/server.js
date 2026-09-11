@@ -69,6 +69,10 @@ app.use(express.json({ limit: '2mb' }));
 const { mutationLimiter } = require('./middleware/rateLimit');
 app.use('/api', mutationLimiter);
 
+// Usados pelas rotas de página no fim do arquivo, para não duplicar aqui o nome
+// do cookie nem a checagem de revogação.
+const { isRevoked, COOKIE_NAME } = require('./middleware/auth');
+
 // Arquivos estáticos na raiz (.html excluídos — servidos pelas rotas SPA com APP_BASE injetado)
 const staticPublic = express.static(path.join(__dirname, 'public'), { index: false });
 app.use((req, res, next) => /\.html?$/i.test(req.path) ? next() : staticPublic(req, res, next));
@@ -96,21 +100,40 @@ app.use('/api/products',  require('./routes/products'));
 app.use('/api/documents', require('./routes/documents'));
 
 // ── SPA Fallback (sempre na raiz) ─────────────────────────────────────────────
-function requireAuthPage(req, res, next) {
-  const token = req.cookies && req.cookies['gp_auth'];
+// Espelha o `authenticate` de middleware/auth.js, inclusive a checagem de
+// revogação — sem ela um token deslogado continuava abrindo a página por até
+// 12h. A diferença é só a resposta: página redireciona pro login, API devolve
+// 401.
+async function requireAuthPage(req, res, next) {
+  const token = req.cookies && req.cookies[COOKIE_NAME];
   if (!token) return res.redirect(BASE + '/login');
   try {
-    jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+    const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+    if (await isRevoked(payload.jti)) {
+      res.clearCookie(COOKIE_NAME);
+      return res.redirect(BASE + '/login');
+    }
+    req.user = payload;
     next();
   } catch {
-    res.clearCookie('gp_auth');
+    res.clearCookie(COOKIE_NAME);
     res.redirect(BASE + '/login');
   }
 }
 
+// Achado #97: /admin* era servido a qualquer sessão válida. Só a casca HTML
+// vazava (todo endpoint com dado já exige requireAdmin), mas um conferente
+// caía numa tela que falhava com 403 em tudo. Manda pra área dele.
+function requireAdminPage(req, res, next) {
+  requireAuthPage(req, res, () => {
+    if (req.user.role !== 'admin') return res.redirect(BASE + '/conferente');
+    next();
+  });
+}
+
 app.get('/login',       (_, res) => res.send(loginHtml));
 app.get('/login.html',  (_, res) => res.send(loginHtml));
-app.get('/admin*',      requireAuthPage, (_, res) => res.send(adminHtml));
+app.get('/admin*',      requireAdminPage, (_, res) => res.send(adminHtml));
 app.get('/conferente*', requireAuthPage, (_, res) => res.send(conferenteHtml));
 app.get('/*',           (_, res) => res.send(indexHtml));
 
