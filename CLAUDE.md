@@ -29,6 +29,8 @@ Single-process Express app backed by **PostgreSQL via Supabase** (`pg` pool). Al
 
 **Entry point:** `server.js` — mounts route groups, injects `window.APP_BASE` into HTML for reverse-proxy path-prefix support, and serves static HTML files with SPA fallbacks (`/admin*`, `/conferente*`, `/*`). Pre-renders all HTML at startup (not per-request).
 
+The page routes have their own guards, separate from the API middleware because the response differs (a page redirects, an API returns 401): `requireAuthPage` needs a valid, non-revoked `gp_auth` cookie, and `requireAdminPage` additionally needs `role === 'admin'`, sending anyone else to `/conferente`. Both mirror `authenticate` from `middleware/auth.js`, including the revocation check — see achado #97.
+
 **Routes:**
 - `routes/auth.js` — `POST /api/auth/login` (Supabase Auth + `public.perfis` gate + local JWT), `POST /api/auth/logout`, `GET /api/auth/me`
 - `routes/products.js` — full CRUD for products, image upload/management (file, URL, or automatic web search), reports
@@ -94,13 +96,17 @@ Login is a two-step server-side flow in `routes/auth.js`:
 
 **Sliding expiration:** `middleware/auth.js` re-issues the cookie on every authenticated request, resetting the 12 h window. Users are logged out if they make no API request for 12 consecutive hours.
 
-**Inactivity/session-length limits:** enforced at the Supabase Auth level (`[auth.sessions]`, shared by all 6 Gato Preto systems), not per-system — see achado #46 da auditoria. There used to be a `public/js/session.js` client-side 1h idle timer here, but it was never wired up to any page (`window._sessionInit` was never called) and was removed as dead code once the Supabase-level policy became the single source of truth.
+**Inactivity/session-length limits:** this system's own 12h sliding window (above) is the only one actually enforcing anything. There used to be a `public/js/session.js` client-side 1h idle timer here, but it was never wired up to any page (`window._sessionInit` was never called) and was removed as dead code.
+
+The plan was for session length to come from the Supabase Auth level (`[auth.sessions]`, shared by all 6 Gato Preto systems) — achado #46, decided on 01/09/2026 as `timebox=24h` / `inactivity_timeout=8h`. **Do not assume it is in force:** on 11/09/2026 `auth.sessions` had 9 live sessions, the oldest 358h old and one idle for 215h, with `not_after` null on all of them — i.e. no timebox was applied. Verify before relying on it (`select count(*) filter (where not_after is not null) from auth.sessions`), and see `C:\dev\Auditoria\PENDENCIAS.md`.
+
+Note this system is unaffected either way for its own pages: access here is gated by the local `gp_auth` JWT, not by the Supabase session. The Supabase session only matters for the SSO bridge at login.
 
 **Logout:** `POST /api/auth/logout` clears the cookie server-side. The frontend also removes `gp_user` from localStorage.
 
 **Cookie config:** `httpOnly: true`, `sameSite: 'lax'`, `maxAge: 12h`. `secure: true` when `NODE_ENV=production` (set this in production for HTTPS-only delivery).
 
-`middleware/auth.js` exports `authenticate` (any valid cookie JWT) and `requireAdmin` (role must be `'admin'`). `JWT_SECRET` **must** be set as an env var — the server throws at startup if missing.
+`middleware/auth.js` exports `authenticate` (any valid cookie JWT) and `requireAdmin` (role must be `'admin'`) for API routes, plus `isRevoked`, which `server.js` reuses for the page guards so the revocation check is not reimplemented there. `JWT_SECRET` **must** be set as an env var — the server throws at startup if missing.
 
 **Frontend state:** `gp_user` (JSON) is kept in localStorage for display (username, role check before first API call). It is cleared on logout. There is no `gp_token` in localStorage.
 
