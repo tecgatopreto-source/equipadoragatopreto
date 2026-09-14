@@ -14,7 +14,7 @@ function renderAuthActions() {
       : user.role === 'user'
         ? `<a class="btn-admin" href="${BASE}/conferente">📋 Conferente</a>`
         : '';
-    el.innerHTML = dashLink + `<button class="btn-login" data-action="logout">Sair (${user.username})</button>`;
+    el.innerHTML = dashLink + `<button class="btn-login" data-action="logout">Sair (${escapeHtml(user.username)})</button>`;
   } else {
     el.innerHTML = `<a class="btn-login" href="${BASE}/login.html">Entrar</a>`;
   }
@@ -173,7 +173,7 @@ async function fetchProducts(page = 1, reset = false) {
 
   if (lastErr && reset) {
     document.getElementById('grid').innerHTML =
-      `<div class="empty"><h3>Erro ao carregar produtos</h3><p>${lastErr.message || 'Verifique a conexão ou recarregue a página.'}</p></div>`;
+      `<div class="empty"><h3>Erro ao carregar produtos</h3><p>${escapeHtml(lastErr.message || 'Verifique a conexão ou recarregue a página.')}</p></div>`;
   }
 
   document.getElementById('lm').disabled = false;
@@ -901,8 +901,10 @@ function _renderCatDropdown(q) {
     ..._allCats.map(c => ({ label: c, value: c }))];
   const visible = lc ? opts.filter(o => o.label.toLowerCase().includes(lc)) : opts;
   if (!visible.length) { dd.hidden = true; return; }
+  // Categoria vem da tabela de produtos, entao e dado, nao literal: escapar nos
+  // dois contextos. Sem escape no data-val, um nome com aspas fecha o atributo.
   dd.innerHTML = visible.map(o =>
-    `<div class="cat-option${o.value === currentCatLabel ? ' cat-selected' : ''}" data-val="${o.value}">${o.label}</div>`
+    `<div class="cat-option${o.value === currentCatLabel ? ' cat-selected' : ''}" data-val="${escapeHtml(o.value)}">${escapeHtml(o.label)}</div>`
   ).join('');
   dd.hidden = false;
 }
