@@ -297,8 +297,11 @@ function _populateFormCatSelect(currentCat) {
     '<option value="">Sem categoria</option>' +
     _cachedCategories
       .map(
+        // Categoria vem da tabela de produtos, entao e dado, nao literal:
+        // escapar nos dois contextos. Sem escape no value, um nome com aspas
+        // fecha o atributo.
         (c) =>
-          `<option value="${c}"${c === currentCat ? " selected" : ""}>${c}</option>`,
+          `<option value="${escapeHtml(c)}"${c === currentCat ? " selected" : ""}>${escapeHtml(c)}</option>`,
       )
       .join("");
 }
@@ -460,7 +463,7 @@ async function loadProducts(page) {
     document.getElementById("pg-next").disabled = page >= totalPages;
   } catch (err) {
     if (reqId !== _loadReqId) return;
-    tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:2rem;color:var(--red,#e53)">Erro ao carregar produtos: ${err.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:2rem;color:var(--red,#e53)">Erro ao carregar produtos: ${escapeHtml(err.message)}</td></tr>`;
   }
 }
 
@@ -1123,7 +1126,7 @@ async function loadDeactivate() {
     _dactData = [];
     countEl.textContent = "";
     tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--red);font-size:.8rem">
-      ❌ Erro ao carregar: ${ex.message}
+      ❌ Erro ao carregar: ${escapeHtml(ex.message)}
     </td></tr>`;
   }
 }
@@ -1317,7 +1320,7 @@ async function _doUploadPdf(type, file) {
   if (!res.ok) {
     setStatus(type, "❌ " + (data.error || "Erro no upload"), "err");
     document.getElementById("import-result").innerHTML =
-      `<div style="color:var(--red);font-size:.8rem">❌ ${data.error || "Erro desconhecido"}</div>`;
+      `<div style="color:var(--red);font-size:.8rem">❌ ${escapeHtml(data.error || "Erro desconhecido")}</div>`;
     document.getElementById("import-result").style.display = "block";
     return;
   }
@@ -1401,7 +1404,7 @@ async function loadImportHistory() {
       })
       .join("");
   } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="7" style="padding:2rem;text-align:center;color:var(--red);font-size:.8rem">❌ Erro: ${err.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="padding:2rem;text-align:center;color:var(--red);font-size:.8rem">❌ Erro: ${escapeHtml(err.message)}</td></tr>`;
   }
 }
 
