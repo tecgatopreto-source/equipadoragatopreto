@@ -66,15 +66,20 @@ npm run dev      # porta 3001
 - Triggers em `products`: `audit_product_changes` e `calc_product_status`.
 - As tabelas **têm** policies de RLS (usando `has_system_access`), mas o backend não passa por elas porque usa conexão direta. O CLAUDE.md diz que não há policies; o banco mostra que há.
 - Imagens enviadas ficam no disco do servidor (`UPLOAD_DIR/product-images/`), **fora do backup do Supabase**.
-- **Outros dependem deste:** a tela Início da Central lê `products` e `import_history` pela função `public.gp_acoes_pendentes()`.
+- **Outros dependem deste:** a tela Início da Central lê `products` e `import_history` pela função `public.gp_acoes_pendentes()`; o Sistema de Estoque lê `products` (inclusive `search_vector_name`, a busca por nome) e `import_history`.
+- **Busca por nome:** coluna gerada `search_vector_name` (nome sem acento, pontuação como separador, configuração `simple`) com índice GIN. A consulta é montada por `ftsPrefixQuery` em `routes/products.js` com a mesma regra: cada palavra vira começo de palavra, todas obrigatórias, e partes grudadas por pontuação ("1.4", "p.choque") precisam estar vizinhas.
+- **Mudanças de banco** ficam em `app/db/migrations/` (cada uma com o seu `_ROLLBACK.sql`) e são aplicadas à mão no deploy. As tabelas mais antigas foram criadas direto no Supabase, antes dessa pasta existir.
 
 ## Deploy
 
 `C:\dev\deploy\deploy.ps1` → entrada `catalogo-produtos`. No servidor: `/var/www/catalogo_produtos`, `npm install` e `pm2 restart catalogo_produtos`.
 
+Se o deploy trouxer migration nova em `app/db/migrations/`, aplique-a no banco **junto com** o restart (a busca nova e a coluna nova precisam estar no ar juntas).
+
 ## Fluxos críticos (conferir antes de cada deploy)
 
 - [ ] Catálogo público abre sem login e a busca de produto funciona
+- [ ] Busca por nome acha pedaço de palavra e ignora pontuação ("lampad" acha LAMPADA; "choque" acha P.CHOQUE)
 - [ ] Entrar pela Central sem pedir senha de novo (SSO)
 - [ ] Conferente: informar o estoque real (testar zero e positivo) e o gerencial e o alerta mudarem conforme a regra
 - [ ] Conferente **não** consegue abrir `/admin`

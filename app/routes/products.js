@@ -78,19 +78,23 @@ function calcStatus(stockFiscal, stockMgmt) {
   return (stockFiscal == stockMgmt) ? 0 : 1;
 }
 
-// Monta uma tsquery "termo1:* & termo2:* & ..." (prefixo, sem acento) a partir do texto buscado.
-// Precisa espelhar a normalização usada na coluna gerada search_vector_name (normalize NFD + strip diacritics).
+// Monta a tsquery da busca por nome (sem acento, por começo de palavra) a partir do texto buscado.
+// Precisa espelhar a normalização da coluna gerada search_vector_name
+// (db/migrations/20261001_search_vector_name_simple.sql): sem acento, minúsculas e toda
+// pontuação vira separador. Cada palavra digitada vira "termo:*" e todas precisam aparecer;
+// partes grudadas por pontuação ("1.4", "p.choque", "civic/city") têm que estar vizinhas e na
+// mesma ordem no nome ("1 <-> 4:*"). Só [a-z0-9] chega à tsquery: nada digitado vira operador.
 function ftsPrefixQuery(text) {
-  const words = text
+  const chunks = text
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .split(/\s+/)
-    // mantém '.', '/' e '-' (ex.: "1.4", "04/11"): to_tsquery usa o mesmo
-    // tokenizador do to_tsvector e re-separa isso corretamente; removê-los
-    // aqui faz "1.4" virar "14", que nunca casa com o lexema '1.4' salvo.
-    .map(w => w.replace(/[^a-z0-9./-]/g, ''))
-    .filter(Boolean);
-  return words.length ? words.map(w => `${w}:*`).join(' & ') : null;
+    .map(chunk => chunk.split(/[^a-z0-9]+/).filter(Boolean))
+    .filter(parts => parts.length);
+  if (!chunks.length) return null;
+  return chunks
+    .map(parts => parts.map((part, i) => (i === parts.length - 1 ? `${part}:*` : part)).join(' <-> '))
+    .join(' & ');
 }
 
 const TTL_STATS      = 2  * 60 * 1000;
@@ -176,7 +180,7 @@ router.get('/', async (req, res) => {
     if (tsq) {
       params.push(tsq);
       nameQueryParamIdx = params.length;
-      conditions.push(`p.search_vector_name @@ to_tsquery('portuguese', $${nameQueryParamIdx})`);
+      conditions.push(`p.search_vector_name @@ to_tsquery('simple', $${nameQueryParamIdx})`);
     }
   } else if (q.trim()) {
     params.push('%' + q.trim().toLowerCase() + '%');
@@ -185,7 +189,7 @@ router.get('/', async (req, res) => {
     if (tsq) {
       params.push(tsq);
       nameQueryParamIdx = params.length;
-      conditions.push(`(p.search_vector_name @@ to_tsquery('portuguese', $${nameQueryParamIdx}) OR p.id ILIKE $${codeParamIdx})`);
+      conditions.push(`(p.search_vector_name @@ to_tsquery('simple', $${nameQueryParamIdx}) OR p.id ILIKE $${codeParamIdx})`);
     } else {
       conditions.push(`p.id ILIKE $${codeParamIdx}`);
     }
@@ -218,7 +222,7 @@ router.get('/', async (req, res) => {
     params.push(code_q.trim().toLowerCase());
     orderBy = `CASE WHEN LOWER(p.id) = $${params.length} THEN 0 ELSE 1 END, ${sortCol} ${sortDir}`;
   } else if (nameQueryParamIdx) {
-    orderBy = `ts_rank(p.search_vector_name, to_tsquery('portuguese', $${nameQueryParamIdx})) DESC, ${sortCol} ${sortDir}`;
+    orderBy = `ts_rank(p.search_vector_name, to_tsquery('simple', $${nameQueryParamIdx})) DESC, ${sortCol} ${sortDir}`;
   } else {
     orderBy = `${sortCol} ${sortDir}`;
   }
