@@ -38,7 +38,9 @@ The page routes have their own guards, separate from the API middleware because 
 
 **Health check:** `GET /api/health` — queries `COUNT(*) FROM products` and returns `{ ok, products }`.
 
-**Database:** `db/schema.js` exports `getDb()` which returns a `pg.Pool` connected to Supabase via `DATABASE_URL`. The pool sets `search_path` and `timezone = 'America/Sao_Paulo'` on every new connection. All queries use this direct connection — RLS is bypassed entirely (access control is enforced at login). Schema (in Supabase): `products`, `product_images`, `product_audit`, `uploaded_documents`, `import_history`.
+**Database:** `db/schema.js` exports `getDb()` which returns a `pg.Pool` connected to Supabase via `DATABASE_URL`. The pool sets `search_path` and `timezone = 'America/Sao_Paulo'` on every new connection. All queries use this direct connection — RLS is bypassed entirely (access control is enforced at login). Schema (in Supabase): `products`, `product_images`, `product_audit`, `uploaded_documents`, `import_history`. Schema changes go in `app/db/migrations/` (with a `_ROLLBACK.sql`), applied by hand at deploy.
+
+**Name search:** `products.search_vector_name` is a generated tsvector (unaccented, punctuation → space, `'simple'` config, GIN index). `ftsPrefixQuery` in `routes/products.js` must mirror that normalization and queries with `to_tsquery('simple', ...)`. The Estoque system reads the same column, so changing it changes both searches.
 
 **Business rule — stock update (`PUT /api/products/:id`):**
 - `stock_fiscal` and `price_fiscal` are read-only; they are never changed by this app.
