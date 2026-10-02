@@ -3,40 +3,73 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Login — Gato Preto</title>
+<title>Catálogo de Produtos — Gato Preto</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./css/tokens.css">
 <link rel="stylesheet" href="./css/style.login.css">
 <link rel="icon" href="logo.png" type="image/png">
 </head>
+<!-- Página de passagem: o Catálogo não tem login próprio. Com sessão da
+     Central, troca o token pelo cookie daqui e segue; sem, manda para a Central.
+     Ver js/login.js e CLAUDE.md (Authentication). -->
 <body class="login-shell">
 <div class="login-card">
   <div class="login-logo">
     <img src="logo.png" alt="Gato Preto">
   </div>
-  <h1 class="login-title">Controle de Produtos</h1>
-  <p class="login-sub">Entre com sua conta para continuar</p>
-  <form id="loginForm">
-    <div class="field">
-      <label for="email">E-mail</label>
-      <input type="email" id="email" autocomplete="email" placeholder="seu@email.com" required>
-    </div>
-    <div class="field">
-      <label for="password">Senha</label>
-      <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" required>
-    </div>
-    <div class="error" id="err">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0;margin-top:1px;">
-        <circle cx="12" cy="12" r="10"/>
-        <line x1="12" y1="8" x2="12" y2="12"/>
-        <line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
-      <span id="err-text"></span>
-    </div>
-    <button class="btn" type="submit" id="btn">Entrar</button>
-  </form>
+  <h1 class="login-title">Catálogo de Produtos</h1>
+
+  <section data-tela="carregando">
+    <p class="login-sub">Abrindo o Catálogo…</p>
+  </section>
+
+  <section data-tela="entrar" hidden>
+    <p class="login-sub">Entre pela Central de Sistemas</p>
+    <p class="passagem-texto">O Catálogo usa o login único. Entre pela Central e abra o Catálogo por lá.</p>
+    <a class="btn" href="/gestao/" target="_top">Ir para a Central</a>
+  </section>
+
+  <section data-tela="sem_acesso" hidden>
+    <p class="login-sub">Sem acesso a este sistema</p>
+    <p class="passagem-texto">Peça acesso a um administrador pela Central de Sistemas.</p>
+    <a class="btn btn-secundario" href="/gestao/" target="_top">Voltar para a Central</a>
+  </section>
+
+  <section data-tela="limite" hidden>
+    <p class="login-sub">Muitas tentativas de entrar</p>
+    <p class="passagem-texto">Aguarde alguns minutos e tente de novo.</p>
+    <button class="btn" type="button" data-action="tentar-de-novo">Tentar de novo</button>
+  </section>
+
+  <section data-tela="erro" hidden>
+    <p class="login-sub">Não foi possível abrir o Catálogo</p>
+    <p class="passagem-texto">Verifique a conexão e tente de novo.</p>
+    <button class="btn" type="button" data-action="tentar-de-novo">Tentar de novo</button>
+  </section>
+
+  <!--login-local-->
+  <!-- Só com LOGIN_LOCAL=1 (máquina de desenvolvimento): o servidor apaga este
+       bloco do HTML em qualquer outro caso, e a rota /api/auth/login nem existe. -->
+  <div class="login-local" id="login-local">
+    <p class="login-local-aviso">Login local de desenvolvimento</p>
+    <form id="loginForm">
+      <div class="field">
+        <label for="email">E-mail</label>
+        <input type="email" id="email" autocomplete="email" placeholder="seu@email.com" required>
+      </div>
+      <div class="field">
+        <label for="password">Senha</label>
+        <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" required>
+      </div>
+      <div class="error" id="err"><span id="err-text"></span></div>
+      <button class="btn" type="submit" id="btn">Entrar</button>
+    </form>
+  </div>
+  <!--/login-local-->
+
   <a class="back" href="#" data-action="go-catalog">← Voltar ao catálogo</a>
 </div>
+<script src="js/sessao-catalogo.js"></script>
 <script src="js/login.js"></script>
 </body>
 </html>

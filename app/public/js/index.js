@@ -6,48 +6,63 @@ function csrfToken() {
 let user  = JSON.parse(localStorage.getItem('gp_user') || 'null');
 function _isAdmin() { return !!(user && user.role === 'admin'); }
 
+// Sem login próprio: o botão do painel só aparece para quem entrou pela Central e
+// tem perfil no Catálogo. Visitante sem sessão vê só o catálogo, sem botão.
 function renderAuthActions() {
   const el = document.getElementById('auth-actions');
-  if (user) {
-    const dashLink = user.role === 'admin'
-      ? `<a class="btn-admin" href="${BASE}/admin">⚙ Admin</a>`
-      : user.role === 'user'
-        ? `<a class="btn-admin" href="${BASE}/conferente">📋 Conferente</a>`
-        : '';
-    el.innerHTML = dashLink + `<button class="btn-login" data-action="logout">Sair (${escapeHtml(user.username)})</button>`;
-  } else {
-    el.innerHTML = `<a class="btn-login" href="${BASE}/login.html">Entrar</a>`;
-  }
-}
-// Sair encerra a sessão da plataforma (ver comentário equivalente no admin.js).
-async function logout() {
-  let accessToken = null;
-  try {
-    accessToken = JSON.parse(localStorage.getItem('gp_session') || 'null')?.access_token || null;
-  } catch (_) {}
-  try {
-    await fetch(BASE + '/api/auth/logout', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(accessToken ? { access_token: accessToken } : {}),
-    });
-  } catch (_) {}
-  try { localStorage.removeItem('gp_session'); } catch (_) {}
-  localStorage.removeItem('gp_user');
-  location.reload();
+  const botao = SessaoCatalogo.botaoDoPainel(user);
+  el.innerHTML = botao ? `<a class="btn-admin" href="${BASE}${botao.caminho}">${escapeHtml(botao.rotulo)}</a>` : '';
 }
 
-async function verifySession() {
-  if (!user) return;
+// As ações de admin (fotos, atualizar) são decididas ao abrir o modal do produto
+// (_isAdmin), então trocar o usuário aqui não exige redesenhar a grade.
+function definirUsuario(novo) {
+  // /api/auth/me devolve o token decodificado (jti, iat, exp…): guarda só o que a tela usa.
+  user = novo ? { id: novo.id, username: novo.username, role: novo.role } : null;
+  if (user) localStorage.setItem('gp_user', JSON.stringify(user));
+  else localStorage.removeItem('gp_user');
+  renderAuthActions();
+}
+
+// Derruba só o cookie daqui (a sessão da Central é dela). Usado quando a sessão
+// da Central sumiu ou é de outra conta: senão o cookie de 12h continuaria valendo.
+async function encerrarSessaoDoCatalogo() {
+  try { await fetch(BASE + '/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
+}
+
+// Confere a sessão em silêncio ao abrir. Visitante sem sessão da Central: nenhuma
+// chamada. Com sessão: primeiro o cookie daqui (/me, sem limite apertado); só se
+// faltar ou for de outra conta chama a ponte (/sso, limitada por IP).
+async function usuarioDoCookie() {
   try {
     const r = await fetch(BASE + '/api/auth/me', { credentials: 'same-origin' });
-    if (r.status === 401 || r.status === 403) {
-      localStorage.removeItem('gp_user');
-      user = null;
-      renderAuthActions();
-    }
+    if (r.ok) return (await r.json()).user;
   } catch (_) {}
+  return null;
+}
+
+async function iniciarSessao() {
+  const central = SessaoCatalogo.lerSessaoCentral(localStorage.getItem('gp_session'));
+  if (!central) {
+    const modoLocal = document.documentElement.dataset.loginLocal === '1';
+    if (SessaoCatalogo.semSessaoDaCentral(modoLocal) === 'usar_cookie') return definirUsuario(await usuarioDoCookie());
+    if (user) await encerrarSessaoDoCatalogo();
+    return definirUsuario(null);
+  }
+  const atual = await usuarioDoCookie();
+  if (atual && !SessaoCatalogo.precisaEntrarDeNovo(central, atual)) return definirUsuario(atual);
+  try {
+    const r = await fetch(BASE + '/api/auth/sso', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ access_token: central.token }),
+    });
+    if (r.ok) return definirUsuario((await r.json()).user);
+  } catch (_) {}
+  // A ponte falhou (token da Central vencido, sem perfil…): não fica com cookie de outra conta.
+  if (atual) await encerrarSessaoDoCatalogo();
+  definirUsuario(null);
 }
 
 // ── State ──────────────────────────────────────────────────────────────────
@@ -837,7 +852,6 @@ document.addEventListener('click', e => {
   const el = e.target.closest('[data-action]');
   if (!el) return;
   switch (el.dataset.action) {
-    case 'logout': logout(); break;
     case 'close-candidates': document.getElementById('candidates-area').style.display = 'none'; break;
     case 'upload-catalog-file': uploadCatalogFile(); break;
     case 'add-catalog-url': addCatalogUrl(); break;
@@ -952,8 +966,9 @@ if (currentCodeQ) {
 }
 document.querySelectorAll('#cat-disabled-group .fb').forEach(b =>
   b.classList.toggle('active', b.dataset.disabled === currentDisabled));
-renderAuthActions();
-verifySession();
+// O botão do painel só aparece depois de conferida a sessão (iniciarSessao):
+// desenhar antes, pelo gp_user guardado, piscava o botão para quem já saiu pela Central.
+iniciarSessao();
 fetchStats();
 fetchProducts(1, true);
 
