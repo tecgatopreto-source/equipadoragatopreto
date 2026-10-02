@@ -19,20 +19,25 @@ npm start
 
 # Start with file-watching (development)
 npm run dev
+
+# Tests (node --test, no extra dependency) — test/*.test.js
+npm test
 ```
 
-There is no test suite and no linter configured.
+No linter configured. **Tests never touch Supabase nor the database** (there is no dev database: local = production): `test/apoio/app-de-teste.js` starts the app on a free port with a fake Supabase (local HTTP server answering `/auth/v1/user`, `/auth/v1/token`, `/rest/v1/perfis`) and swaps `db/schema` for an in-memory fake before `app.js` loads. Each test file runs in its own process.
+
+**Local login:** in production the only way in is the Central (single sign-on). Locally the Central runs on another port (another origin) and can't share `gp_session`, so put `LOGIN_LOCAL=1` in `app/.env` to get the password form on `/login` (see `config.js`; the server refuses to start with `LOGIN_LOCAL=1` and `NODE_ENV=production`).
 
 ## Architecture
 
 Single-process Express app backed by **PostgreSQL via Supabase** (`pg` pool). All code lives under `app/`.
 
-**Entry point:** `server.js` — mounts route groups, injects `window.APP_BASE` into HTML for reverse-proxy path-prefix support, and serves static HTML files with SPA fallbacks (`/admin*`, `/conferente*`, `/*`). Pre-renders all HTML at startup (not per-request).
+**Entry point:** `server.js` loads `.env`, opens the DB pool and listens. The app itself is built in `app.js` — mounts route groups, injects `window.APP_BASE` into HTML for reverse-proxy path-prefix support, and serves static HTML files with SPA fallbacks (`/admin*`, `/conferente*`, `/*`). Pre-renders all HTML at startup (not per-request). The split exists so tests can load the app without a real DB.
 
-The page routes have their own guards, separate from the API middleware because the response differs (a page redirects, an API returns 401): `requireAuthPage` needs a valid, non-revoked `gp_auth` cookie, and `requireAdminPage` additionally needs `role === 'admin'`, sending anyone else to `/conferente`. Both mirror `authenticate` from `middleware/auth.js`, including the revocation check — see achado #97.
+The page routes have their own guards, separate from the API middleware because the response differs (a page redirects, an API returns 401): `requireAuthPage(para)` needs a valid, non-revoked `gp_auth` cookie and otherwise redirects to `/login?para=admin|conferente` (fixed values set in the server, never a free URL), and `requireAdminPage` additionally needs `role === 'admin'`, sending anyone else to `/conferente`. Both mirror `authenticate` from `middleware/auth.js`, including the revocation check — see achado #97.
 
 **Routes:**
-- `routes/auth.js` — `POST /api/auth/login` (Supabase Auth + `public.perfis` gate + local JWT), `POST /api/auth/logout`, `GET /api/auth/me`
+- `routes/auth.js` — `POST /api/auth/sso` (single sign-on: Central token + `public.perfis` gate + local JWT; the only way in in production), `POST /api/auth/logout` (revokes only this system's cookie), `GET /api/auth/me`; `POST /api/auth/login` (password) exists **only with `LOGIN_LOCAL=1`**
 - `routes/products.js` — full CRUD for products, image upload/management (file, URL, or automatic web search), reports
 - `routes/documents.js` — PDF upload and fiscal/gerencial import
 
@@ -71,19 +76,25 @@ SVG category icons live in `svg/` and are served at `/svg/`. The frontend picks 
 - `public/index.html` — public product catalog
 - `public/admin.html` — admin dashboard (product management, reports, image management); requires `admin` role
 - `public/conferente.html` — stock checker view; requires any authenticated user
-- `public/login.html` — login form
+- `public/login.html` — página de passagem (no password form in production): with a Central session it trades the token for the cookie and goes to `?para=`; otherwise "Entre pela Central" / "Sem acesso". The `<!--login-local-->` block (password form) is stripped by the server unless `LOGIN_LOCAL=1`
 
 **Frontend JS modules** (`public/js/`):
 - `product-category-svg.js` — maps product name keywords to SVG filenames in `/svg/`
 - `admin.js`, `conferente.js`, `index.js`, `login.js` — page-specific logic
+- `sessao-catalogo.js` — session decisions with no DOM/network (which button, where to go, which screen), loaded before `index.js`/`login.js` and tested in `test/sessao-catalogo.test.js`
 
 **Design system (`public/css/tokens.css`)**: tokens compartilhados Gato Preto, linkados em cada HTML antes do CSS específico da página (`style.index.css`, `style.admin.css`, `style.conferente.css`, `style.login.css`). Os 4 arquivos tinham cada um seu próprio `:root` — `style.login.css` usava o template antigo (cor de marca `#7dd33c`, já corrigida) e os outros 3 usavam uma paleta neutra mais "quente" (`#f5f5f5`/`#1a1814`), que foi unificada com a paleta cinza compartilhada por decisão explícita (antes era `#f5f5f5`/`#1a1814`/`#e8e6e1` etc., visual do catálogo mudou para bater com os outros 5 sistemas). Cores semânticas específicas do catálogo (`--green`, `--red`, `--amber`, `--col-fiscal`, `--col-mgmt`, `--col-real`, `--accent-dark`, `--safe-bottom`/`--safe-top`) continuam locais, sem equivalente na paleta compartilhada.
 
 ## Authentication
 
-**SSO com a Central de Sistemas:** `POST /api/auth/sso` recebe `{ access_token }` (da sessão Supabase compartilhada `gp_session` que a Central e os demais sistemas guardam no localStorage — todos na mesma origem em produção), valida o token via `GET /auth/v1/user`, aplica o mesmo gate de `perfis` do login por senha e emite o mesmo cookie `gp_auth`. O client `public/js/login.js` tenta esse fluxo automaticamente ao abrir a tela de login; se falhar, o formulário de senha é o fallback.
+**Sem login próprio (desde 02/10/2026):** a entrada é só pela Central (login único), como no Estoque. Não há formulário de senha nem botão "Sair" — sai-se pela Central.
 
-Login is a two-step server-side flow in `routes/auth.js`:
+- **Página pública (`/`):** aberta a qualquer um. Visitante sem sessão da Central vê só o catálogo, sem botão nenhum (e não faz nenhuma chamada de sessão). Com sessão da Central, `index.js` (`iniciarSessao`) confere em silêncio: primeiro `GET /api/auth/me` (o cookie daqui); só se faltar ou for de outra conta chama `POST /api/auth/sso`. Mostra **Painel admin** (admin) ou **Conferente** (user). Se a sessão da Central sumiu ou é de outra conta, chama `/api/auth/logout` para o cookie de 12h daqui não continuar valendo sozinho.
+- **`/admin` e `/conferente` sem cookie:** vão para `/login?para=…`, a página de passagem (ver Frontend pages).
+- **`/api/auth/sso`** recebe `{ access_token }` (da sessão Supabase compartilhada `gp_session` que a Central grava no localStorage — mesma origem em produção), valida via `GET /auth/v1/user`, aplica o gate de `perfis` e emite o cookie `gp_auth`. Limite próprio (`ssoLimiter`: 30 por 15 min por IP) — a página pública chama a ponte sozinha, e o limite do login por senha (5 em 15 min) travaria uma loja inteira atrás do mesmo IP.
+- **Limitação conhecida:** o Catálogo não tem supabase-js no navegador, então não renova o `access_token` do `gp_session` (vale ~1h). Se ninguém abriu a Central (ou outro sistema com supabase-js) nesse tempo, a ponte recusa o token vencido e a pessoa vê "Entre pela Central"; ao abrir a Central o token é renovado.
+
+The local password login (`LOGIN_LOCAL=1` only, `POST /api/auth/login`) is a two-step server-side flow in `routes/auth.js`:
 
 1. **Supabase Auth** — `POST /auth/v1/token?grant_type=password` validates credentials and returns an `access_token`.
 2. **Access gate** — query `public.perfis` (the central access-control table shared across all systems):
@@ -104,11 +115,11 @@ The plan was for session length to come from the Supabase Auth level (`[auth.ses
 
 Note this system is unaffected either way for its own pages: access here is gated by the local `gp_auth` JWT, not by the Supabase session. The Supabase session only matters for the SSO bridge at login.
 
-**Logout:** `POST /api/auth/logout` clears the cookie server-side. The frontend also removes `gp_user` from localStorage.
+**Logout:** no "Sair" button anymore. `POST /api/auth/logout` revokes and clears only this system's cookie (it no longer signs out of the Supabase session — that belongs to the Central); the public page calls it when the Central session is gone.
 
 **Cookie config:** `httpOnly: true`, `sameSite: 'lax'`, `maxAge: 12h`. `secure: true` when `NODE_ENV=production` (set this in production for HTTPS-only delivery).
 
-`middleware/auth.js` exports `authenticate` (any valid cookie JWT) and `requireAdmin` (role must be `'admin'`) for API routes, plus `isRevoked`, which `server.js` reuses for the page guards so the revocation check is not reimplemented there. `JWT_SECRET` **must** be set as an env var — the server throws at startup if missing.
+`middleware/auth.js` exports `authenticate` (any valid cookie JWT) and `requireAdmin` (role must be `'admin'`) for API routes, plus `isRevoked`, which `app.js` reuses for the page guards so the revocation check is not reimplemented there. `JWT_SECRET` **must** be set as an env var — the server throws at startup if missing.
 
 **Frontend state:** `gp_user` (JSON) is kept in localStorage for display (username, role check before first API call). It is cleared on logout. There is no `gp_token` in localStorage.
 

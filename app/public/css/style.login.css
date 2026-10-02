@@ -138,6 +138,43 @@ input:focus {
   cursor: not-allowed;
 }
 
+/* Página de passagem (login único pela Central) */
+[hidden] { display: none !important; }
+.passagem-texto {
+  font-size: 14px;
+  color: var(--color-ink-2);
+  text-align: center;
+  line-height: 1.5;
+  margin: -12px 0 24px;
+}
+a.btn {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+}
+.btn-secundario {
+  background: #ffffff;
+  color: var(--color-ink);
+  border: 1px solid var(--color-border);
+}
+.btn-secundario:hover { background: var(--color-bg); }
+
+/* Login local de desenvolvimento (LOGIN_LOCAL=1) */
+.login-local {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px dashed var(--color-border);
+}
+.login-local-aviso {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--color-warn, #b7791f);
+  text-align: center;
+  margin-bottom: 14px;
+}
+
 .back {
   display: block;
   text-align: center;

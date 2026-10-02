@@ -26,8 +26,9 @@ const mutationLimiter = rateLimit({
   message: { error: 'Muitas requisições em pouco tempo. Aguarde um momento e tente novamente.' },
 });
 
-// Limiter restrito pro login/SSO — chave combinada IP + e-mail, evita força
-// bruta numa conta específica sem penalizar todo mundo atrás do mesmo IP.
+// Limiter restrito pro login por senha (só existe com LOGIN_LOCAL=1, máquina de
+// desenvolvimento) — chave combinada IP + e-mail, evita força bruta numa conta
+// específica sem penalizar todo mundo atrás do mesmo IP.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 5,
@@ -38,6 +39,21 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.' },
+});
+
+// Limiter da ponte do login único (/api/auth/sso). A página pública chama a
+// ponte sozinha quando há sessão da Central e o cookie daqui venceu, então ele
+// precisa aguentar uma loja inteira atrás do mesmo IP — o do login por senha (5
+// em 15 min) travaria todo mundo. Força bruta não se aplica: o token é
+// conferido pelo Supabase, não dá para adivinhar. Chave só por IP (não há
+// e-mail no corpo).
+const ssoLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  keyGenerator: (req) => rateLimit.ipKeyGenerator(req.ip),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas tentativas de entrar. Aguarde alguns minutos e tente novamente.' },
 });
 
 // Limiter dedicado pra busca de imagens (?fresh=1 em /search-images) — rota
@@ -54,4 +70,4 @@ const imageSearchLimiter = rateLimit({
   message: { error: 'Muitas buscas de imagem em pouco tempo. Aguarde um momento e tente novamente.' },
 });
 
-module.exports = { mutationLimiter, loginLimiter, imageSearchLimiter };
+module.exports = { mutationLimiter, loginLimiter, ssoLimiter, imageSearchLimiter };

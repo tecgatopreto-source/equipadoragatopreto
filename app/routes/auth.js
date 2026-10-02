@@ -1,7 +1,8 @@
 const router = require('express').Router();
 const jwt    = require('jsonwebtoken');
 const { JWT_SECRET, COOKIE_NAME, revokeToken, _refreshCookie } = require('../middleware/auth');
-const { loginLimiter } = require('../middleware/rateLimit');
+const { loginLimiter, ssoLimiter } = require('../middleware/rateLimit');
+const { loginLocalLigado } = require('../config');
 
 const SUPABASE_URL      = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
@@ -19,8 +20,11 @@ async function supabaseLogout(accessToken) {
   } catch (_) {}
 }
 
-// POST /api/auth/login
-router.post('/login', loginLimiter, async (req, res) => {
+// POST /api/auth/login — login por senha. SÓ com LOGIN_LOCAL=1 (máquina de
+// desenvolvimento, onde a Central roda em outra origem e o login único não
+// enxerga a sessão). Em produção a rota não existe: a entrada é só pela
+// Central, via /sso abaixo.
+if (loginLocalLigado(process.env)) router.post('/login', loginLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password)
     return res.status(400).json({ error: 'E-mail e senha são obrigatórios' });
@@ -73,12 +77,12 @@ router.post('/login', loginLimiter, async (req, res) => {
 });
 
 // POST /api/auth/sso
-// SSO com a Central de Sistemas: o browser envia o access_token da sessão
-// Supabase compartilhada ('gp_session', mesma origem em produção). O token é
-// validado no Supabase, o gate de perfis é o mesmo do login por senha e o
-// cookie gp_auth emitido é idêntico. Se qualquer etapa falhar, o cliente cai
-// no formulário de login normal.
-router.post('/sso', loginLimiter, async (req, res) => {
+// Login único com a Central de Sistemas — a ÚNICA entrada em produção. O
+// browser envia o access_token da sessão Supabase compartilhada ('gp_session',
+// mesma origem em produção). O token é validado no Supabase, o perfil em
+// public.perfis decide o acesso e o cookie gp_auth é emitido. Se falhar, a
+// página de passagem (/login) mostra "Entre pela Central" ou "Sem acesso".
+router.post('/sso', ssoLimiter, async (req, res) => {
   const { access_token } = req.body || {};
   if (!access_token)
     return res.status(400).json({ error: 'access_token é obrigatório' });
@@ -121,7 +125,10 @@ router.post('/sso', loginLimiter, async (req, res) => {
   }
 });
 
-// POST /api/auth/logout
+// POST /api/auth/logout — encerra SÓ a sessão do Catálogo (revoga o cookie).
+// Não há mais botão "Sair" aqui: sai-se pela Central. A página pública chama
+// esta rota quando a sessão da Central sumiu (ou é de outra conta), para o
+// cookie de 12h daqui não continuar valendo sozinho.
 router.post('/logout', async (req, res) => {
   const token = req.cookies && req.cookies[COOKIE_NAME];
   if (token) {
@@ -132,24 +139,6 @@ router.post('/logout', async (req, res) => {
       // Token já inválido/expirado — nada a revogar.
     }
   }
-
-  // Sair encerra a sessão da plataforma inteira, como nos demais sistemas Gato
-  // Preto (todos chamam signOut() no escopo global). O cliente manda o
-  // access_token do gp_session porque este app não tem cliente Supabase no
-  // navegador. Sem isto, apagar só o cookie daqui não adiantava: a tela de
-  // login readotava o gp_session e relogava a pessoa em seguida.
-  const { access_token: accessToken } = req.body || {};
-  if (accessToken) {
-    try {
-      await fetch(`${SUPABASE_URL}/auth/v1/logout?scope=global`, {
-        method: 'POST',
-        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${accessToken}` },
-      });
-    } catch (_) {
-      // Supabase fora do ar — o cookie local já foi derrubado de qualquer forma.
-    }
-  }
-
   res.clearCookie(COOKIE_NAME);
   res.json({ ok: true });
 });

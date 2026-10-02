@@ -1,141 +1,18 @@
+// Sobe o Catálogo: lê o .env local, abre o banco e escuta a porta. O app em si
+// (rotas, segurança, páginas) é montado em app.js.
+
 // Carrega .env em desenvolvimento local (ignorado se não existir)
 try { require('fs').readFileSync('.env').toString().split('\n').forEach(l => { const [k,...v]=l.trim().split('='); if(k&&!k.startsWith('#')&&!process.env[k]) process.env[k]=v.join('='); }); } catch {}
 
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const jwt = require('jsonwebtoken');
-
-// Variáveis obrigatórias — falha rápido se faltar
-['DATABASE_URL', 'JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_ANON_KEY'].forEach(k => {
-  if (!process.env[k]) { console.error(`[FATAL] Variável de ambiente ausente: ${k}`); process.exit(1); }
-});
-
-const app = express();
-app.disable('x-powered-by'); // segurança: não vaza versão do Express
-// Roda atrás de 1 proxy reverso (Nginx, mesmo host) — "1" faz o Express confiar
-// só no X-Forwarded-For/X-Forwarded-Proto desse hop, não da cadeia inteira.
-// Sem isso, req.ip sempre resolve pro IP do Nginx (127.0.0.1), enfraquecendo
-// o rate-limit por IP em middleware/rateLimit.js.
-app.set('trust proxy', 1);
+let montado;
+try {
+  montado = require('./app');
+} catch (e) {
+  console.error(e.message);
+  process.exit(1);
+}
+const { app, BASE, LOGIN_LOCAL } = montado;
 const PORT = process.env.PORT || 3001;
-
-// BASE_PATH é usado APENAS para injetar o atributo data-base no HTML.
-// O Express sempre serve as rotas na raiz — o Nginx já faz o strip do prefixo.
-// Ex: Nginx recebe /catalogo_produtos/admin → passa /admin ao Express.
-const BASE = (process.env.BASE_PATH || '').replace(/\/$/, '');
-
-function renderHtml(file) {
-  let html = fs.readFileSync(path.join(__dirname, 'public', file), 'utf8');
-  if (BASE) {
-    // Atributo de dados em vez de <script> inline — permite CSP sem 'unsafe-inline' em script-src.
-    html = html.replace('<html lang="pt-BR">', `<html lang="pt-BR" data-base="${BASE.replace(/"/g, '&quot;')}">`);
-  }
-  return html;
-}
-const adminHtml      = renderHtml('admin.html');
-const conferenteHtml = renderHtml('conferente.html');
-const indexHtml      = renderHtml('index.html');
-const loginHtml      = renderHtml('login.html');
-
-// Headers de segurança (achado #25 da auditoria). CSP sem 'unsafe-inline' em
-// script-src — só é possível porque todo onclick/onerror inline foi
-// substituído por addEventListener (ver public/js/*.js).
-app.use((req, res, next) => {
-  res.set({
-    'Content-Security-Policy': [
-      "default-src 'self'",
-      "script-src 'self' https://cdn.sheetjs.com",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com",
-      "img-src 'self' https:",
-      "connect-src 'self'",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "frame-ancestors 'self'",
-    ].join('; '),
-    'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'SAMEORIGIN',
-    'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
-  });
-  next();
-});
-
-app.use(require('cookie-parser')());
-app.use(express.json({ limit: '2mb' }));
-
-const { mutationLimiter } = require('./middleware/rateLimit');
-app.use('/api', mutationLimiter);
-
-// Usados pelas rotas de página no fim do arquivo, para não duplicar aqui o nome
-// do cookie nem a checagem de revogação.
-const { isRevoked, COOKIE_NAME } = require('./middleware/auth');
-
-// Arquivos estáticos na raiz (.html excluídos — servidos pelas rotas SPA com APP_BASE injetado)
-const staticPublic = express.static(path.join(__dirname, 'public'), { index: false });
-app.use((req, res, next) => /\.html?$/i.test(req.path) ? next() : staticPublic(req, res, next));
-
-app.use('/svg', express.static(path.join(__dirname, 'svg')));
-
-const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-app.use('/uploads', express.static(UPLOAD_DIR));
-
-// ── Health check (diagnóstico de conexão com o banco) ─────────────────────────
-app.get('/api/health', async (_, res) => {
-  try {
-    const { getDb, DB_SCHEMA } = require('./db/schema');
-    const { rows } = await getDb().query(`SELECT COUNT(*) FROM "${DB_SCHEMA}".products`);
-    res.json({ ok: true, products: rows[0].count });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-// ── API Routes (sempre na raiz) ───────────────────────────────────────────────
-app.use('/api/auth',      require('./routes/auth'));
-app.use('/api/products',  require('./routes/products'));
-app.use('/api/documents', require('./routes/documents'));
-
-// ── SPA Fallback (sempre na raiz) ─────────────────────────────────────────────
-// Espelha o `authenticate` de middleware/auth.js, inclusive a checagem de
-// revogação — sem ela um token deslogado continuava abrindo a página por até
-// 12h. A diferença é só a resposta: página redireciona pro login, API devolve
-// 401.
-async function requireAuthPage(req, res, next) {
-  const token = req.cookies && req.cookies[COOKIE_NAME];
-  if (!token) return res.redirect(BASE + '/login');
-  try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
-    if (await isRevoked(payload.jti)) {
-      res.clearCookie(COOKIE_NAME);
-      return res.redirect(BASE + '/login');
-    }
-    req.user = payload;
-    next();
-  } catch {
-    res.clearCookie(COOKIE_NAME);
-    res.redirect(BASE + '/login');
-  }
-}
-
-// Achado #97: /admin* era servido a qualquer sessão válida. Só a casca HTML
-// vazava (todo endpoint com dado já exige requireAdmin), mas um conferente
-// caía numa tela que falhava com 403 em tudo. Manda pra área dele.
-function requireAdminPage(req, res, next) {
-  requireAuthPage(req, res, () => {
-    if (req.user.role !== 'admin') return res.redirect(BASE + '/conferente');
-    next();
-  });
-}
-
-app.get('/login',       (_, res) => res.send(loginHtml));
-app.get('/login.html',  (_, res) => res.send(loginHtml));
-app.get('/admin*',      requireAdminPage, (_, res) => res.send(adminHtml));
-app.get('/conferente*', requireAuthPage, (_, res) => res.send(conferenteHtml));
-app.get('/*',           (_, res) => res.send(indexHtml));
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 // initDb() resolve o hostname para IPv4 e cria o pool com host literal (sem DNS no pg)
@@ -153,6 +30,7 @@ const { initDb, getDb } = require('./db/schema');
     console.log(`\n Gato Preto — Catálogo Online`);
     console.log(`   Local:     http://localhost:${PORT}/`);
     if (BASE) console.log(`   Produção: http://servidor${BASE}/`);
+    if (LOGIN_LOCAL) console.warn('   ATENÇÃO: LOGIN_LOCAL=1 — formulário de senha ligado (só para desenvolvimento).');
     console.log();
   });
 })();

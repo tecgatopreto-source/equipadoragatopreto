@@ -4,37 +4,16 @@ function escapeHtml(str) {
   if (str == null) return "";
   return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
+// Sem sessão de admin daqui: a página de passagem refaz o login único pela
+// Central (não há login próprio nem botão Sair — sai-se pela Central).
+const ENTRAR = BASE + "/login?para=admin";
 const user = JSON.parse(localStorage.getItem("gp_user") || "null");
 if (!user || user.role !== "admin") {
-  location.href = BASE + "/login.html";
+  location.href = ENTRAR;
 }
-document.getElementById("uname").textContent = user ? user.username : "";
 
 function csrfToken() {
   return document.cookie.match(/(?:^|; )gp_csrf=([^;]*)/)?.[1] || "";
-}
-
-// Sair encerra a sessão da plataforma, não só a deste sistema: manda o
-// access_token do gp_session pro servidor revogar no Supabase e apaga a chave
-// aqui. Apagar é necessário mesmo com a revogação — o access_token é um JWT
-// com validade própria (~1h) e a tela de login voltaria a aceitá-lo, relogando
-// a pessoa logo depois de sair.
-async function logout() {
-  let accessToken = null;
-  try {
-    accessToken = JSON.parse(localStorage.getItem("gp_session") || "null")?.access_token || null;
-  } catch (_) {}
-  try {
-    await fetch(BASE + "/api/auth/logout", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(accessToken ? { access_token: accessToken } : {}),
-    });
-  } catch (_) {}
-  try { localStorage.removeItem("gp_session"); } catch (_) {}
-  localStorage.removeItem("gp_user");
-  location.href = BASE + "/login.html";
 }
 
 // ── Sidebar mobile toggle ──────────────────────────────────────────────────
@@ -123,7 +102,7 @@ async function api(method, path, body) {
   }
   if (res.status === 401) {
     localStorage.removeItem("gp_user");
-    location.href = BASE + "/login.html";
+    location.href = ENTRAR;
     return;
   }
   if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
@@ -1528,7 +1507,6 @@ document.addEventListener("click", (e) => {
   switch (el.dataset.action) {
     case "toggle-sidebar": toggleSidebar(); break;
     case "go-catalog": e.preventDefault(); location.href = BASE + "/"; break;
-    case "logout": logout(); break;
     case "navigate": navigate(el.dataset.page); break;
     case "open-deactivate": openDeactivateFlag(el.dataset.flag); break;
     case "dashboard-status-link": goToProductsWithStatus(el.dataset.status); break;
