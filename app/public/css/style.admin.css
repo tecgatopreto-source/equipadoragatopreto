@@ -32,21 +32,27 @@ header {
   top: 0;
   z-index: 100;
 }
-.logo-mark {
-  font-family: "Playfair Display", serif;
-  font-size: 1.2rem;
-  font-weight: 900;
+/* Marca: logo | Gato Preto | nome do sistema — padrão dos 7 sistemas
+   (modelo: Estoque, frontend/src/layout/layout.css). Igual em style.index.css. */
+.logo-section { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+.logo-img { height: 52px; width: auto; object-fit: contain; }
+.logo-title {
+  font-family: var(--font-sans);
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1.2;
   color: var(--color-ink);
+  white-space: nowrap;
 }
-.logo-mark span {
-  color: var(--color-brand);
-}
-.logo-sub {
-  font-size: 0.58rem;
+.logo-title span { color: var(--color-brand); font-weight: 300; }
+.logo-sistema {
+  font-size: var(--text-md);
   font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
   color: var(--color-muted);
+  padding-left: 16px;
+  border-left: 1px solid var(--color-border);
+  white-space: nowrap;
 }
 .header-actions {
   display: flex;
@@ -885,11 +891,11 @@ th.col-real {
   header {
     padding: 0.5rem 1rem;
   }
-  .logo-mark {
-    font-size: 1.1rem;
+  .logo-title {
+    font-size: 20px;
   }
-  .logo-sub {
-    font-size: 0.52rem;
+  .logo-img {
+    height: 40px;
   }
   .btn-sm {
     font-size: 0.65rem;
@@ -901,11 +907,14 @@ th.col-real {
   header {
     padding: 0.4rem 0.75rem;
   }
-  .logo-mark {
-    font-size: 1rem;
+  .logo-title {
+    font-size: 18px;
   }
-  .logo-sub {
-    font-size: 0.48rem;
+  .logo-img {
+    height: 32px;
+  }
+  .logo-sistema {
+    display: none;
   }
   .btn-sm {
     font-size: 0.6rem;
