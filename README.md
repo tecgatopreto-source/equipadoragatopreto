@@ -36,7 +36,9 @@ Enquanto a importação do dia não é feita, a Central mostra a ação pendente
 
 ## Sessão (diferente dos outros sistemas)
 
-O login usa o Supabase (inclusive o SSO pela Central), mas depois o sistema emite **seu próprio token** num cookie HttpOnly `gp_auth`. Esse cookie dura 12 horas e renova a cada uso. A migração para o modelo dos outros sistemas está planejada (ver ADRs em `C:\dev\Doc\adr`).
+**Login único:** o Catálogo não tem tela de login própria. Só se entra pela Central, que é o único lugar com senha. A página pública não tem "Entrar"; o botão "Painel admin"/"Conferente" só aparece para quem entrou pela Central e tem perfil no Catálogo. `/login` é uma página de passagem ("Entre pela Central" / "Sem acesso"). Não há "Sair": sai-se pela Central. Os conferentes entram pela Central no celular.
+
+A entrada troca a sessão da Central (`gp_session`) pelo **token próprio** do sistema, num cookie HttpOnly `gp_auth`. Esse cookie dura 12 horas e renova a cada uso. A migração para o modelo dos outros sistemas está planejada (ver ADRs em `C:\dev\Doc\adr`).
 
 ## Rodar localmente
 
@@ -47,6 +49,8 @@ npm run dev      # porta 3001
 ```
 
 > ⚠️ Não existe banco de desenvolvimento: rodando localmente você mexe nos **dados reais**.
+
+**Entrar no local:** no local a Central roda em outro endereço e a sessão não é compartilhada. Ponha `LOGIN_LOCAL=1` no `app/.env` para ter o formulário de senha em `/login`.
 
 ## Variáveis de ambiente
 
@@ -59,6 +63,7 @@ npm run dev      # porta 3001
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Sim | Login pelo Supabase |
 | `GOOGLE_SEARCH_API_KEY`, `GOOGLE_SEARCH_CX` | Não | Busca de imagens pelo Google (sem elas, usa o Bing) |
 | `BASE_PATH`, `NODE_ENV`, `UPLOAD_DIR`, `PORT` | Não | Produção: `BASE_PATH=/catalogo_produtos`, `NODE_ENV=production` |
+| `LOGIN_LOCAL` | Não | **Só na máquina de desenvolvimento**: `1` liga o login por senha. O servidor recusa subir com `LOGIN_LOCAL=1` e `NODE_ENV=production` |
 
 ## Dados
 
@@ -88,4 +93,6 @@ Se o deploy trouxer migration nova em `app/db/migrations/`, aplique-a no banco *
 - [ ] **Admin: importar os 3 PDFs do dia:** fiscal e gerencial (estoque e preço mudam) e grupos (prévia aparece; ao aplicar, as categorias mudam)
 - [ ] Produto no grupo "01 DESATIVADO" fica desativado
 - [ ] Após importar, o aviso "Atualizar o catálogo de produtos hoje" some da Central
-- [ ] Sair e o cookie ser invalidado
+- [ ] `/login` sem ter entrado na Central → "Entre pela Central", **sem** formulário de senha (se aparecer, o servidor está sem `NODE_ENV=production`: conferir `pm2 env`)
+- [ ] Página pública sem "Entrar" e sem "Sair"; depois de sair na Central, ao recarregar a página pública o botão "Painel admin"/"Conferente" some (o cookie daqui é encerrado)
+- [ ] Conferente entra pela Central no celular
