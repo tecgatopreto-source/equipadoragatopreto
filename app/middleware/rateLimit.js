@@ -1,17 +1,17 @@
 const rateLimit = require('express-rate-limit');
-const { JWT_SECRET, COOKIE_NAME } = require('./auth');
-const jwt = require('jsonwebtoken');
+const { tokenDoCabecalho, validarToken } = require('./auth');
 
-// Decodifica o cookie gp_auth (se presente) só pra extrair o user id e
-// escopar o limite por usuário — não por IP, já que vários usuários podem
-// estar atrás do mesmo IP corporativo/NAT. Sem cookie válido, cai pro IP.
-function _userOrIpKey(req) {
-  const token = req.cookies && req.cookies[COOKIE_NAME];
+// Escopa o limite por usuário — não por IP, já que vários usuários podem estar
+// atrás do mesmo IP corporativo/NAT. Só usa o `sub` de um token com ASSINATURA
+// CONFERIDA: este limiter roda antes da autenticação das rotas, e um `sub` lido
+// sem conferir deixaria qualquer um gastar o limite de outra pessoa. Sem token
+// válido, cai pro IP. (Conferir a assinatura é local: o JWKS fica em memória.)
+async function _userOrIpKey(req) {
+  const token = tokenDoCabecalho(req);
   if (token) {
     try {
-      const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
-      if (payload && payload.id) return `user:${payload.id}`;
-    } catch { /* token ausente/expirado: cai pro IP abaixo */ }
+      return `user:${(await validarToken(token)).sub}`;
+    } catch { /* token ausente/inválido/vencido ou JWKS fora: cai pro IP abaixo */ }
   }
   return rateLimit.ipKeyGenerator(req.ip);
 }
@@ -24,36 +24,6 @@ const mutationLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Muitas requisições em pouco tempo. Aguarde um momento e tente novamente.' },
-});
-
-// Limiter restrito pro login por senha (só existe com LOGIN_LOCAL=1, máquina de
-// desenvolvimento) — chave combinada IP + e-mail, evita força bruta numa conta
-// específica sem penalizar todo mundo atrás do mesmo IP.
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 5,
-  keyGenerator: (req) => {
-    const email = (req.body && req.body.email || '').toLowerCase().trim();
-    return `${rateLimit.ipKeyGenerator(req.ip)}:${email}`;
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.' },
-});
-
-// Limiter da ponte do login único (/api/auth/sso). A página pública chama a
-// ponte sozinha quando há sessão da Central e o cookie daqui venceu, então ele
-// precisa aguentar uma loja inteira atrás do mesmo IP — o do login por senha (5
-// em 15 min) travaria todo mundo. Força bruta não se aplica: o token é
-// conferido pelo Supabase, não dá para adivinhar. Chave só por IP (não há
-// e-mail no corpo).
-const ssoLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 30,
-  keyGenerator: (req) => rateLimit.ipKeyGenerator(req.ip),
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Muitas tentativas de entrar. Aguarde alguns minutos e tente novamente.' },
 });
 
 // Limiter dedicado pra busca de imagens (?fresh=1 em /search-images) — rota
@@ -70,4 +40,4 @@ const imageSearchLimiter = rateLimit({
   message: { error: 'Muitas buscas de imagem em pouco tempo. Aguarde um momento e tente novamente.' },
 });
 
-module.exports = { mutationLimiter, loginLimiter, ssoLimiter, imageSearchLimiter };
+module.exports = { mutationLimiter, imageSearchLimiter };

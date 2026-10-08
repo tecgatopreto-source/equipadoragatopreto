@@ -1,9 +1,7 @@
 // ── Auth ───────────────────────────────────────────────────────────────────
 const BASE = document.documentElement.dataset.base || '';
-function csrfToken() {
-  return document.cookie.match(/(?:^|; )gp_csrf=([^;]*)/)?.[1] || '';
-}
-let user  = JSON.parse(localStorage.getItem('gp_user') || 'null');
+// Preenchido por iniciarSessao (GET /api/auth/me); null = visitante.
+let user = null;
 function _isAdmin() { return !!(user && user.role === 'admin'); }
 
 // Sem login próprio: o botão do painel só aparece para quem entrou pela Central e
@@ -17,52 +15,17 @@ function renderAuthActions() {
 // As ações de admin (fotos, atualizar) são decididas ao abrir o modal do produto
 // (_isAdmin), então trocar o usuário aqui não exige redesenhar a grade.
 function definirUsuario(novo) {
-  // /api/auth/me devolve o token decodificado (jti, iat, exp…): guarda só o que a tela usa.
   user = novo ? { id: novo.id, username: novo.username, role: novo.role } : null;
-  if (user) localStorage.setItem('gp_user', JSON.stringify(user));
-  else localStorage.removeItem('gp_user');
   renderAuthActions();
 }
 
-// Derruba só o cookie daqui (a sessão da Central é dela). Usado quando a sessão
-// da Central sumiu ou é de outra conta: senão o cookie de 12h continuaria valendo.
-async function encerrarSessaoDoCatalogo() {
-  try { await fetch(BASE + '/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); } catch (_) {}
-}
-
 // Confere a sessão em silêncio ao abrir. Visitante sem sessão da Central: nenhuma
-// chamada. Com sessão: primeiro o cookie daqui (/me, sem limite apertado); só se
-// faltar ou for de outra conta chama a ponte (/sso, limitada por IP).
-async function usuarioDoCookie() {
-  try {
-    const r = await fetch(BASE + '/api/auth/me', { credentials: 'same-origin' });
-    if (r.ok) return (await r.json()).user;
-  } catch (_) {}
-  return null;
-}
-
+// chamada (quemSou responde 401 sem ir à API). Com sessão: /api/auth/me diz o papel.
+// Sair pela Central (em qualquer aba) tira o botão na hora.
 async function iniciarSessao() {
-  const central = SessaoCatalogo.lerSessaoCentral(localStorage.getItem('gp_session'));
-  if (!central) {
-    const modoLocal = document.documentElement.dataset.loginLocal === '1';
-    if (SessaoCatalogo.semSessaoDaCentral(modoLocal) === 'usar_cookie') return definirUsuario(await usuarioDoCookie());
-    if (user) await encerrarSessaoDoCatalogo();
-    return definirUsuario(null);
-  }
-  const atual = await usuarioDoCookie();
-  if (atual && !SessaoCatalogo.precisaEntrarDeNovo(central, atual)) return definirUsuario(atual);
-  try {
-    const r = await fetch(BASE + '/api/auth/sso', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'same-origin',
-      body: JSON.stringify({ access_token: central.token }),
-    });
-    if (r.ok) return definirUsuario((await r.json()).user);
-  } catch (_) {}
-  // A ponte falhou (token da Central vencido, sem perfil…): não fica com cookie de outra conta.
-  if (atual) await encerrarSessaoDoCatalogo();
-  definirUsuario(null);
+  const { usuario } = await SessaoGP.quemSou();
+  definirUsuario(usuario);
+  SessaoGP.aoSair(() => definirUsuario(null));
 }
 
 // ── State ──────────────────────────────────────────────────────────────────
@@ -105,12 +68,11 @@ function _imgCacheClear(id) {
 }
 
 // ── Fetch helpers ──────────────────────────────────────────────────────────
+// Com sessão, leva o token (as ações de admin do modal precisam); sem, vai sem.
 async function apiFetch(path, opts = {}) {
-  const baseUrl = document.documentElement.dataset.base || '';
-  const r = await fetch(baseUrl + path, {
-    credentials: 'same-origin',
+  const r = await SessaoGP.apiFetch(path, {
     ...opts,
-    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken(), ...(opts.headers || {}) },
+    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
   });
   let data;
   try { data = await r.json(); } catch (_) { data = {}; }
@@ -727,8 +689,8 @@ async function uploadCatalogFile() {
   const formData = new FormData();
   formData.append('image', file);
   try {
-    const res = await fetch((document.documentElement.dataset.base || '') + `/api/products/${modalProductId}/images/upload`, {
-      method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': csrfToken() }, body: formData,
+    const res = await SessaoGP.apiFetch(`/api/products/${modalProductId}/images/upload`, {
+      method: 'POST', body: formData,
     });
     const data = await res.json();
     if (!res.ok) { showToast('Erro: ' + (data.error || 'falha no upload')); return; }
@@ -966,8 +928,7 @@ if (currentCodeQ) {
 }
 document.querySelectorAll('#cat-disabled-group .fb').forEach(b =>
   b.classList.toggle('active', b.dataset.disabled === currentDisabled));
-// O botão do painel só aparece depois de conferida a sessão (iniciarSessao):
-// desenhar antes, pelo gp_user guardado, piscava o botão para quem já saiu pela Central.
+// O botão do painel só aparece depois de conferida a sessão (iniciarSessao).
 iniciarSessao();
 fetchStats();
 fetchProducts(1, true);

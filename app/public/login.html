@@ -49,7 +49,8 @@
 
   <!--login-local-->
   <!-- Só com LOGIN_LOCAL=1 (máquina de desenvolvimento): o servidor apaga este
-       bloco do HTML em qualquer outro caso, e a rota /api/auth/login nem existe. -->
+       bloco do HTML em qualquer outro caso. Entra pelo supabase-js (js/sessao.js),
+       que grava a gp_session local; o servidor não tem rota de login. -->
   <div class="login-local" id="login-local">
     <p class="login-local-aviso">Login local de desenvolvimento</p>
     <form id="loginForm">
@@ -69,7 +70,9 @@
 
   <a class="back" href="#" data-action="go-catalog">← Voltar ao catálogo</a>
 </div>
+<script src="js/vendor/supabase-2.103.2.min.js"></script>
 <script src="js/sessao-catalogo.js"></script>
+<script src="js/sessao.js"></script>
 <script src="js/login.js"></script>
 </body>
 </html>
