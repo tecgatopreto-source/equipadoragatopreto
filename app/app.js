@@ -4,13 +4,15 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const jwt = require('jsonwebtoken');
 const { loginLocalLigado } = require('./config');
 
-// Variáveis obrigatórias — falha rápido se faltar
-['DATABASE_URL', 'JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_ANON_KEY'].forEach(k => {
+// Variáveis obrigatórias — falha rápido se faltar. (JWT_SECRET saiu em 08/10/2026:
+// não há mais JWT próprio; a sessão é a gp_session, conferida pelo JWKS.)
+['DATABASE_URL', 'SUPABASE_URL', 'SUPABASE_ANON_KEY'].forEach(k => {
   if (!process.env[k]) throw new Error(`[FATAL] Variável de ambiente ausente: ${k}`);
 });
+const SUPABASE_URL = process.env.SUPABASE_URL.replace(/\/$/, '');
+const SUPABASE_ORIGIN = new URL(SUPABASE_URL).origin;
 // Login por senha só na máquina de desenvolvimento (LOGIN_LOCAL=1). Em produção
 // a entrada é só pela Central (login único); se a variável aparecer lá por
 // engano, o servidor não sobe — config.js recusa.
@@ -29,16 +31,21 @@ app.set('trust proxy', 1);
 // Ex: Nginx recebe /catalogo_produtos/admin → passa /admin ao Express.
 const BASE = (process.env.BASE_PATH || '').replace(/\/$/, '');
 
+const atributo = (nome, valor) => ` ${nome}="${String(valor).replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"`;
+
 function renderHtml(file) {
   let html = fs.readFileSync(path.join(__dirname, 'public', file), 'utf8');
   // Atributos de dados em vez de <script> inline — permite CSP sem 'unsafe-inline' em script-src.
   let atributos = '';
-  if (BASE) atributos += ` data-base="${BASE.replace(/"/g, '&quot;')}"`;
-  // Modo local: sem sessão da Central (outra origem), a página pública confia só
-  // no cookie daqui em vez de encerrá-lo (ver iniciarSessao em js/index.js).
+  if (BASE) atributos += atributo('data-base', BASE);
+  // Para o supabase-js do navegador (js/sessao.js) ler e renovar a gp_session.
+  // A anon key é pública (é a mesma que os outros sistemas põem no front).
+  atributos += atributo('data-supabase-url', SUPABASE_URL);
+  atributos += atributo('data-supabase-anon', process.env.SUPABASE_ANON_KEY);
+  // Modo local: a Central roda em outra origem e não compartilha a gp_session;
+  // a página de passagem mostra o formulário de senha (ver js/login.js).
   if (LOGIN_LOCAL) atributos += ' data-login-local="1"';
-  if (atributos) html = html.replace('<html lang="pt-BR">', `<html lang="pt-BR"${atributos}>`);
-  return html;
+  return html.replace('<html lang="pt-BR">', `<html lang="pt-BR"${atributos}>`);
 }
 const adminHtml      = renderHtml('admin.html');
 const conferenteHtml = renderHtml('conferente.html');
@@ -56,7 +63,7 @@ app.use((req, res, next) => {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' https:",
-      "connect-src 'self'",
+      `connect-src 'self' ${SUPABASE_ORIGIN}`, // supabase-js renova o token direto no Supabase
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -70,15 +77,10 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(require('cookie-parser')());
 app.use(express.json({ limit: '2mb' }));
 
 const { mutationLimiter } = require('./middleware/rateLimit');
 app.use('/api', mutationLimiter);
-
-// Usados pelas rotas de página no fim do arquivo, para não duplicar aqui o nome
-// do cookie nem a checagem de revogação.
-const { isRevoked, COOKIE_NAME } = require('./middleware/auth');
 
 // Arquivos estáticos na raiz (.html excluídos — servidos pelas rotas SPA com APP_BASE injetado)
 const staticPublic = express.static(path.join(__dirname, 'public'), { index: false });
@@ -106,44 +108,23 @@ app.use('/api/auth',      require('./routes/auth'));
 app.use('/api/products',  require('./routes/products'));
 app.use('/api/documents', require('./routes/documents'));
 
-// ── SPA Fallback (sempre na raiz) ─────────────────────────────────────────────
-// Espelha o `authenticate` de middleware/auth.js, inclusive a checagem de
-// revogação — sem ela um token deslogado continuava abrindo a página por até
-// 12h. A diferença é só a resposta: página manda pra página de passagem
-// (/login, login único pela Central), API devolve 401.
-//
-// `para` diz à página de passagem aonde voltar. Só aceita estes dois valores,
-// fixos aqui no servidor: nunca vira redirecionamento para fora do Catálogo.
-function requireAuthPage(para) {
-  const entrar = `${BASE}/login?para=${para}`;
-  return async (req, res, next) => {
-    const token = req.cookies && req.cookies[COOKIE_NAME];
-    if (!token) return res.redirect(entrar);
-    try {
-      const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
-      if (await isRevoked(payload.jti)) {
-        res.clearCookie(COOKIE_NAME);
-        return res.redirect(entrar);
-      }
-      req.user = payload;
-      next();
-    } catch {
-      res.clearCookie(COOKIE_NAME);
-      res.redirect(entrar);
-    }
-  };
-}
+// ── Páginas (sempre na raiz) ──────────────────────────────────────────────────
+// Sem proteção no servidor (decisão D1 de 08/10/2026): o token vai no header
+// Authorization, que uma navegação de página não leva. Cada página confere a
+// sessão no próprio JS (GET /api/auth/me) antes de mostrar qualquer coisa: sem
+// sessão → /login?para=…; conferente em /admin → /conferente (achado #97). O
+// HTML é só a casca: TODO dado passa pela API, que exige requireAdmin.
 
-// Achado #97: /admin* era servido a qualquer sessão válida. Só a casca HTML
-// vazava (todo endpoint com dado já exige requireAdmin), mas um conferente
-// caía numa tela que falhava com 403 em tudo. Manda pra área dele.
-const exigirSessaoAdmin = requireAuthPage('admin');
-function requireAdminPage(req, res, next) {
-  exigirSessaoAdmin(req, res, () => {
-    if (req.user.role !== 'admin') return res.redirect(BASE + '/conferente');
-    next();
-  });
+// Até 08/10/2026 a sessão daqui era o cookie gp_auth (+ gp_csrf). Não valem mais
+// nada; apaga os que sobraram no navegador. Pode sair junto com a limpeza do
+// JWT_SECRET/revoked_tokens (passo final do plano).
+function apagarCookiesAntigos(req, res) {
+  const cookies = req.headers.cookie || '';
+  for (const nome of ['gp_auth', 'gp_csrf']) {
+    if (new RegExp(`(?:^|;\\s*)${nome}=`).test(cookies)) res.clearCookie(nome);
+  }
 }
+const pagina = (html) => (req, res) => { apagarCookiesAntigos(req, res); res.send(html); };
 
 // Página de passagem: sem formulário de senha. O bloco entre os marcadores
 // login-local só fica no HTML com LOGIN_LOCAL=1 (máquina de desenvolvimento).
@@ -151,10 +132,10 @@ const passagemHtml = LOGIN_LOCAL
   ? loginHtml
   : loginHtml.replace(/<!--login-local-->[\s\S]*?<!--\/login-local-->/, '');
 
-app.get('/login',       (_, res) => res.send(passagemHtml));
-app.get('/login.html',  (_, res) => res.send(passagemHtml));
-app.get('/admin*',      requireAdminPage, (_, res) => res.send(adminHtml));
-app.get('/conferente*', requireAuthPage('conferente'), (_, res) => res.send(conferenteHtml));
-app.get('/*',           (_, res) => res.send(indexHtml));
+app.get('/login',       pagina(passagemHtml));
+app.get('/login.html',  pagina(passagemHtml));
+app.get('/admin*',      pagina(adminHtml));
+app.get('/conferente*', pagina(conferenteHtml));
+app.get('/*',           pagina(indexHtml));
 
 module.exports = { app, BASE, LOGIN_LOCAL };

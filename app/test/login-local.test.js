@@ -24,19 +24,14 @@ test('com LOGIN_LOCAL=1, a página de passagem mostra o formulário', async () =
   assert.match(html, /Entre pela Central/);
 });
 
-// No local não existe sessão da Central (outra origem): a página pública precisa
-// saber que está em modo local para confiar só no cookie daqui e não deslogar.
 test('com LOGIN_LOCAL=1, as páginas vêm marcadas como modo local', async () => {
   const html = await (await t.pedir('/')).text();
   assert.match(html, /<html lang="pt-BR"[^>]* data-login-local="1"/);
 });
 
-test('com LOGIN_LOCAL=1, o login por senha funciona e confere o perfil', async () => {
-  const certo = await t.pedir('/api/auth/login', { metodo: 'POST', corpo: { email: 'admin@teste.com', password: 'certa' } });
-  assert.equal(certo.status, 200);
-  assert.equal((await certo.json()).user.role, 'admin');
-  assert.ok(certo.headers.getSetCookie().some((c) => c.startsWith('gp_auth=')));
-
-  const errado = await t.pedir('/api/auth/login', { metodo: 'POST', corpo: { email: 'admin@teste.com', password: 'errada' } });
-  assert.equal(errado.status, 401);
+// O formulário entra pelo supabase-js no navegador (grava a gp_session local);
+// o servidor não tem mais rota de login, nem no modo local.
+test('com LOGIN_LOCAL=1, também não existe rota de login no servidor', async () => {
+  const r = await t.pedir('/api/auth/login', { metodo: 'POST', corpo: { email: 'admin@teste.com', password: 'x' } });
+  assert.equal(r.status, 404);
 });

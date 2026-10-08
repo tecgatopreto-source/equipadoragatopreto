@@ -1,9 +1,6 @@
 'use strict';
 
 const BASE = document.documentElement.dataset.base || '';
-function csrfToken() {
-  return document.cookie.match(/(?:^|; )gp_csrf=([^;]*)/)?.[1] || '';
-}
 /* ═══ STATE ══════════════════════════════════════════════════════════ */
 let products = [];
 let page     = 1;
@@ -21,22 +18,17 @@ let searchTimer   = null;
 // página de passagem refaz o login único pela Central.
 const ENTRAR = BASE + '/login?para=conferente';
 
-function init() {
-  const user = localStorage.getItem('gp_user');
-  if (!user) {
-    window.location.replace(ENTRAR);
-    return;
-  }
-  const userData = JSON.parse(user);
+// Confere a sessão (SessaoGP.exigirArea, js/sessao.js) antes de carregar dado.
+async function init() {
+  const userData = await SessaoGP.exigirArea('conferente');
   const userEl = document.getElementById('header-user');
   if (userEl && userData?.username) userEl.textContent = userData.username;
   loadProducts(1);
 }
 
-// Sessão deste sistema expirada (401). A página de passagem troca de novo o
-// token da Central pelo cookie daqui, sem pedir nada à pessoa.
+// Sessão caiu depois de abrir (401 mesmo após renovar): a página de passagem
+// confere de novo com a sessão da Central, sem pedir nada à pessoa.
 function sessaoExpirada() {
-  localStorage.removeItem('gp_user');
   window.location.replace(ENTRAR);
 }
 
@@ -82,9 +74,7 @@ async function loadProducts(p = 1) {
   if (alertFilter)  params.set('fiscal_alert', '1');
 
   try {
-    const res  = await fetch(BASE + '/api/products?' + params, {
-      credentials: 'same-origin',
-    });
+    const res  = await SessaoGP.apiFetch('/api/products?' + params);
     if (res.status === 401) { sessaoExpirada(); return; }
     const data = await res.json();
     products = data.products || [];
@@ -170,9 +160,7 @@ function renderPagination() {
 async function openSheet(id) {
   let p;
   try {
-    const res = await fetch(BASE + `/api/products/${encodeURIComponent(id)}`, {
-      credentials: 'same-origin',
-    });
+    const res = await SessaoGP.apiFetch(`/api/products/${encodeURIComponent(id)}`);
     p = await res.json();
   } catch { return; }
   currentProduct = p;
@@ -282,10 +270,9 @@ async function saveProduct() {
   btn.textContent = 'Salvando…';
 
   try {
-    const res = await fetch(BASE + `/api/products/${encodeURIComponent(currentProduct.id)}/stock-real`, {
+    const res = await SessaoGP.apiFetch(`/api/products/${encodeURIComponent(currentProduct.id)}/stock-real`, {
       method:  'PATCH',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken() },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stock_real: parseFloat(rawVal) })
     });
 

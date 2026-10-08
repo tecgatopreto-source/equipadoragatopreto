@@ -1,26 +1,16 @@
 // Decisões sobre a sessão, sem tocar em DOM nem rede — testadas em
 // test/sessao-catalogo.test.js. No navegador viram `window.SessaoCatalogo`
-// (carregado antes de index.js e login.js); no Node, `module.exports`.
+// (carregado antes de js/sessao.js e das páginas); no Node, `module.exports`.
 //
-// Entrada só pela Central (login único): o Catálogo lê a sessão `gp_session`
-// que a Central grava (mesma origem em produção) e troca o token pelo cookie
-// gp_auth daqui em /api/auth/sso.
+// Entrada só pela Central (login único). O Catálogo não tem sessão própria: usa a
+// `gp_session` compartilhada e manda o token em `Authorization: Bearer` (ADR 0010).
+// Quem é a pessoa e qual o papel vem sempre de GET /api/auth/me (o servidor lê o
+// public.perfis na hora).
 (function (raiz, fabrica) {
   const m = fabrica();
   if (typeof module === 'object' && module.exports) module.exports = m;
   else raiz.SessaoCatalogo = m;
 })(typeof self !== 'undefined' ? self : this, function () {
-  /** gp_session (texto do localStorage) → { token, userId }, ou null se não houver sessão. */
-  function lerSessaoCentral(bruto) {
-    try {
-      const s = JSON.parse(bruto || 'null');
-      if (!s || !s.access_token) return null;
-      return { token: s.access_token, userId: (s.user && s.user.id) || null };
-    } catch (_) {
-      return null;
-    }
-  }
-
   /** Botão da página pública conforme o papel no Catálogo; null = nenhum botão. */
   function botaoDoPainel(usuario) {
     if (!usuario) return null;
@@ -29,18 +19,20 @@
     return null;
   }
 
-  /** Trocar o token da Central pelo cookie daqui? Sim sem cookie válido ou se o cookie é de outra conta. */
-  function precisaEntrarDeNovo(central, usuarioDoCatalogo) {
-    return !usuarioDoCatalogo || usuarioDoCatalogo.id !== central.userId;
-  }
-
   /**
-   * Sem sessão da Central: em produção, a pessoa saiu pela Central → 'encerrar' o
-   * cookie daqui. No modo local (LOGIN_LOCAL=1) a Central roda em outra origem e a
-   * sessão nunca aparece → 'usar_cookie' do login local.
+   * /admin e /conferente, a partir do status de /api/auth/me e do papel:
+   * 'liberado' | 'conferente' (conferente que abriu /admin — achado #97) |
+   * 'entrar' (sem sessão, sem perfil ou papel desconhecido: a página de passagem
+   * explica) | 'erro' (503, rede…: não deu para conferir, tentar de novo).
    */
-  function semSessaoDaCentral(modoLocal) {
-    return modoLocal ? 'usar_cookie' : 'encerrar';
+  function decidirPagina(area, status, papel) {
+    if (status === 200) {
+      if (papel === 'admin') return 'liberado';
+      if (papel === 'user') return area === 'conferente' ? 'liberado' : 'conferente';
+      return 'entrar';
+    }
+    if (status === 401 || status === 403) return 'entrar';
+    return 'erro';
   }
 
   /**
@@ -53,13 +45,13 @@
     return '/';
   }
 
-  /** Página de passagem: o que mostrar quando a ponte (/api/auth/sso) não deu certo. */
-  function telaDaPassagem(status, erro) {
-    if (status === 401 && erro === 'no_access') return 'sem_acesso';
+  /** Página de passagem: o que mostrar quando /api/auth/me não liberou. */
+  function telaDaPassagem(status) {
     if (status === 401) return 'entrar';
+    if (status === 403) return 'sem_acesso';
     if (status === 429) return 'limite';
     return 'erro';
   }
 
-  return { lerSessaoCentral, botaoDoPainel, precisaEntrarDeNovo, semSessaoDaCentral, destinoAposEntrar, telaDaPassagem };
+  return { botaoDoPainel, decidirPagina, destinoAposEntrar, telaDaPassagem };
 });

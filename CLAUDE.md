@@ -24,9 +24,9 @@ npm run dev
 npm test
 ```
 
-No linter configured. **Tests never touch Supabase nor the database** (there is no dev database: local = production): `test/apoio/app-de-teste.js` starts the app on a free port with a fake Supabase (local HTTP server answering `/auth/v1/user`, `/auth/v1/token`, `/rest/v1/perfis`) and swaps `db/schema` for an in-memory fake before `app.js` loads. Each test file runs in its own process.
+No linter configured. **Tests never touch Supabase nor the database** (there is no dev database: local = production): `test/apoio/app-de-teste.js` starts the app on a free port with a fake Supabase (local HTTP server serving the JWKS with an EC key generated in the test, and `/rest/v1/perfis`) and swaps `db/schema` for an in-memory fake before `app.js` loads. Tokens are really signed (ES256), so signature, expiry, `aud` and role checks run as in production. Each test file runs in its own process (the JWKS cache and the rate-limit counter are per process — that is why `jwks-fora` and `limite` have their own files).
 
-**Local login:** in production the only way in is the Central (single sign-on). Locally the Central runs on another port (another origin) and can't share `gp_session`, so put `LOGIN_LOCAL=1` in `app/.env` to get the password form on `/login` (see `config.js`; the server refuses to start with `LOGIN_LOCAL=1` and `NODE_ENV=production`).
+**Local login:** in production the only way in is the Central (single sign-on). Locally the Central runs on another port (another origin) and can't share `gp_session`, so put `LOGIN_LOCAL=1` in `app/.env` to get the password form on `/login`. The form signs in with supabase-js in the browser (writes a local `gp_session`); the server has no login route (see `config.js`; the server refuses to start with `LOGIN_LOCAL=1` and `NODE_ENV=production`).
 
 ## Architecture
 
@@ -34,10 +34,10 @@ Single-process Express app backed by **PostgreSQL via Supabase** (`pg` pool). Al
 
 **Entry point:** `server.js` loads `.env`, opens the DB pool and listens. The app itself is built in `app.js` — mounts route groups, injects `window.APP_BASE` into HTML for reverse-proxy path-prefix support, and serves static HTML files with SPA fallbacks (`/admin*`, `/conferente*`, `/*`). Pre-renders all HTML at startup (not per-request). The split exists so tests can load the app without a real DB.
 
-The page routes have their own guards, separate from the API middleware because the response differs (a page redirects, an API returns 401): `requireAuthPage(para)` needs a valid, non-revoked `gp_auth` cookie and otherwise redirects to `/login?para=admin|conferente` (fixed values set in the server, never a free URL), and `requireAdminPage` additionally needs `role === 'admin'`, sending anyone else to `/conferente`. Both mirror `authenticate` from `middleware/auth.js`, including the revocation check — see achado #97.
+**Page routes have no server-side guard** (decision D1 of `C:\dev\Auditoria\PLANO_CATALOGO_SESSAO_PADRAO.md`, 08/10/2026): the token travels in the `Authorization` header, which a page navigation does not send. Each page checks the session in its own JS before showing anything (`SessaoGP.exigirArea`, `public/js/sessao.js` → `GET /api/auth/me`): no session or no perfil → `/login?para=admin|conferente` (fixed values, never a free URL); a conferente on `/admin` → `/conferente` (achado #97); 503/network → "tente de novo". The HTML is only the shell: **every piece of data goes through the API, and every non-public API route requires `requireAdmin`** — `test/rotas-protegidas.test.js` reads the routers and fails if a new route forgets it. Page routes also clear leftover `gp_auth`/`gp_csrf` cookies from the old session model.
 
 **Routes:**
-- `routes/auth.js` — `POST /api/auth/sso` (single sign-on: Central token + `public.perfis` gate + local JWT; the only way in in production), `POST /api/auth/logout` (revokes only this system's cookie), `GET /api/auth/me`; `POST /api/auth/login` (password) exists **only with `LOGIN_LOCAL=1`**
+- `routes/auth.js` — only `GET /api/auth/me` (`{ id, email, username, role }`, role read from `public.perfis` right now). There is no login, SSO bridge or logout route anymore.
 - `routes/products.js` — full CRUD for products, image upload/management (file, URL, or automatic web search), reports
 - `routes/documents.js` — PDF upload and fiscal/gerencial import
 
@@ -76,52 +76,39 @@ SVG category icons live in `svg/` and are served at `/svg/`. The frontend picks 
 - `public/index.html` — public product catalog
 - `public/admin.html` — admin dashboard (product management, reports, image management); requires `admin` role
 - `public/conferente.html` — stock checker view; requires any authenticated user
-- `public/login.html` — página de passagem (no password form in production): with a Central session it trades the token for the cookie and goes to `?para=`; otherwise "Entre pela Central" / "Sem acesso". The `<!--login-local-->` block (password form) is stripped by the server unless `LOGIN_LOCAL=1`
+- `public/login.html` — página de passagem (no password form in production): with a Central session it checks `/api/auth/me` and goes to `?para=`; otherwise "Entre pela Central" / "Sem acesso". The `<!--login-local-->` block (password form) is stripped by the server unless `LOGIN_LOCAL=1`
 
-**Frontend JS modules** (`public/js/`):
+**Frontend JS modules** (`public/js/`), loaded by every page in this order:
+- `vendor/supabase-2.103.2.min.js` — official UMD build of `@supabase/supabase-js` 2.103.2 (taken from the npm package on 08/10/2026; same version as the Financeiro). Served locally, no CDN.
+- `sessao-catalogo.js` — session decisions with no DOM/network (which button, `decidirPagina`, where to go, which screen), tested in `test/sessao-catalogo.test.js`
+- `sessao.js` — `window.SessaoGP`: the supabase-js client on `gp_session` (reads and refreshes the shared session), `apiFetch` (Bearer token; on 401 refreshes once and retries), `quemSou`, `exigirArea`, `aoSair`, `entrarComSenha` (local only). Reads the Supabase URL and anon key from `data-supabase-url` / `data-supabase-anon`, injected by `app.js`.
 - `product-category-svg.js` — maps product name keywords to SVG filenames in `/svg/`
-- `admin.js`, `conferente.js`, `index.js`, `login.js` — page-specific logic
-- `sessao-catalogo.js` — session decisions with no DOM/network (which button, where to go, which screen), loaded before `index.js`/`login.js` and tested in `test/sessao-catalogo.test.js`
+- `admin.js`, `conferente.js`, `index.js`, `login.js` — page-specific logic; every API call goes through `SessaoGP.apiFetch`
 
 **Design system (`public/css/tokens.css`)**: tokens compartilhados Gato Preto, linkados em cada HTML antes do CSS específico da página (`style.index.css`, `style.admin.css`, `style.conferente.css`, `style.login.css`). Os 4 arquivos tinham cada um seu próprio `:root` — `style.login.css` usava o template antigo (cor de marca `#7dd33c`, já corrigida) e os outros 3 usavam uma paleta neutra mais "quente" (`#f5f5f5`/`#1a1814`), que foi unificada com a paleta cinza compartilhada por decisão explícita (antes era `#f5f5f5`/`#1a1814`/`#e8e6e1` etc., visual do catálogo mudou para bater com os outros 5 sistemas). Cores semânticas específicas do catálogo (`--green`, `--red`, `--amber`, `--col-fiscal`, `--col-mgmt`, `--col-real`, `--accent-dark`, `--safe-bottom`/`--safe-top`) continuam locais, sem equivalente na paleta compartilhada.
 
 ## Authentication
 
-**Sem login próprio (desde 02/10/2026):** a entrada é só pela Central (login único), como no Estoque. Não há formulário de senha nem botão "Sair" — sai-se pela Central.
+**Sem login próprio (desde 02/10/2026) e sem sessão própria (desde 08/10/2026, ADR 0010):** a entrada é só pela Central (login único), e o Catálogo usa a **mesma sessão** dos outros sistemas — a `gp_session` que a Central grava no localStorage (mesma origem em produção). Não há formulário de senha, botão "Sair", cookie de sessão, CSRF nem JWT próprio. Plano e decisões D1–D5: `C:\dev\Auditoria\PLANO_CATALOGO_SESSAO_PADRAO.md`.
 
-- **Página pública (`/`):** aberta a qualquer um. Visitante sem sessão da Central vê só o catálogo, sem botão nenhum (e não faz nenhuma chamada de sessão). Com sessão da Central, `index.js` (`iniciarSessao`) confere em silêncio: primeiro `GET /api/auth/me` (o cookie daqui); só se faltar ou for de outra conta chama `POST /api/auth/sso`. Mostra **Painel admin** (admin) ou **Conferente** (user). Se a sessão da Central sumiu ou é de outra conta, chama `/api/auth/logout` para o cookie de 12h daqui não continuar valendo sozinho.
-- **`/admin` e `/conferente` sem cookie:** vão para `/login?para=…`, a página de passagem (ver Frontend pages).
-- **`/api/auth/sso`** recebe `{ access_token }` (da sessão Supabase compartilhada `gp_session` que a Central grava no localStorage — mesma origem em produção), valida via `GET /auth/v1/user`, aplica o gate de `perfis` e emite o cookie `gp_auth`. Limite próprio (`ssoLimiter`: 30 por 15 min por IP) — a página pública chama a ponte sozinha, e o limite do login por senha (5 em 15 min) travaria uma loja inteira atrás do mesmo IP.
-- **Limitação conhecida:** o Catálogo não tem supabase-js no navegador, então não renova o `access_token` do `gp_session` (vale ~1h). Se ninguém abriu a Central (ou outro sistema com supabase-js) nesse tempo, a ponte recusa o token vencido e a pessoa vê "Entre pela Central"; ao abrir a Central o token é renovado.
+**Navegador (`public/js/sessao.js`):** o supabase-js lê a `gp_session` e a **renova sozinho** (coordenando as abas pelo `navigator.locks`, como nos outros sistemas — acabou a limitação de ~1h sem renovação). Toda chamada à API leva `Authorization: Bearer <access_token>`; num 401, `apiFetch` renova a sessão uma vez e tenta de novo. O papel nunca fica guardado no navegador: cada página pergunta `GET /api/auth/me`.
 
-The local password login (`LOGIN_LOCAL=1` only, `POST /api/auth/login`) is a two-step server-side flow in `routes/auth.js`:
+- **Página pública (`/`):** aberta a qualquer um. Visitante sem sessão vê só o catálogo, sem botão nenhum e sem nenhuma chamada de sessão. Com sessão, `iniciarSessao` (`index.js`) chama `/api/auth/me` e mostra **Painel admin** (admin) ou **Conferente** (user). Sair pela Central (em qualquer aba) tira o botão na hora (`SIGNED_OUT`).
+- **`/admin` e `/conferente`:** `SessaoGP.exigirArea` confere antes de mostrar (ver "Page routes" acima). Sair pela Central volta para a passagem.
+- **`/login` (passagem):** com sessão e perfil, segue para `?para=`; sem sessão, "Entre pela Central"; sem perfil, "Sem acesso"; 503/rede, "tente de novo".
 
-1. **Supabase Auth** — `POST /auth/v1/token?grant_type=password` validates credentials and returns an `access_token`.
-2. **Access gate** — query `public.perfis` (the central access-control table shared across all systems):
-   ```
-   SELECT role FROM public.perfis
-   WHERE user_id = <auth.uid()> AND sistema = 'CatalogoProdutos'
-   ```
-   If no row is found, the Supabase session is invalidated and `401 no_access` is returned.
-3. **Local JWT** — if access is granted, the server issues its own JWT (expires 12 h) containing `{ id, username, role }`. The `role` comes from `public.perfis`, not from Supabase `app_metadata`. Valid roles: `admin`, `conferente`.
+**Servidor (`middleware/auth.js`, padrão ADR 0010 em Node):**
+- `validarToken`: assinatura pelo JWKS do Supabase com a biblioteca `jose` (chave pelo `kid`; algoritmos aceitos só `ES256`/`RS256`, e o `alg` do token tem de casar com o tipo da chave — sem HS256, sem segredo compartilhado). Exige `exp`, `sub` (UUID) e `aud = authenticated`, com 30 s de tolerância de relógio. JWKS em memória com `cacheMaxAge: Infinity` (com o padrão de 10 min a jose relê até para chave conhecida, e uma falha nessa releitura viraria 503 para todo mundo); `kid` desconhecido força releitura, no máximo 1 a cada 30 s; leituras simultâneas viram uma só. Depois de uma leitura que **falhou** não há espera antes da próxima (diferente do `auth_jwks.py`, que espera 5 s) — aceito: só quem traz `kid` desconhecido dispara leitura.
+- `lerPapel`: `public.perfis` (`sistema = 'CatalogoProdutos'`) **a cada chamada, com o token do próprio usuário** (anon key + Bearer; policy `perfis_self_read`). Tirar o acesso na Central corta na próxima chamada (antes, o papel ficava dentro do cookie de 12h).
+- Respostas: **401** sem token, token inválido/vencido ou `perfis` recusando o token · **403** sem perfil (`authenticate`) ou não admin (`requireAdmin`) · **503** JWKS ou `perfis` sem resposta / em formato inesperado · 500 só para erro inesperado (logado).
+- `req.user = { id, email, username, role }`; `username` é o e-mail (é o que `routes/documents.js` grava no histórico de importação).
+- O token continua aceito até vencer mesmo depois do "Sair" na Central (decisão de 07/10/2026, igual aos outros sistemas).
 
-**Session storage:** The JWT is stored in an **HttpOnly cookie** (`gp_auth`), not in localStorage. The token is never exposed to JavaScript. The response body on login returns only `{ user }` (no token).
+**Rate limit:** o limite geral (`mutationLimiter`, 100/min) roda antes da autenticação das rotas, então só usa o `sub` como chave **depois de conferir a assinatura** (`validarToken`); sem token válido, a chave é o IP. Um token forjado com o `sub` de outra pessoa não gasta o limite dela (`test/limite.test.js`).
 
-**Sliding expiration:** `middleware/auth.js` re-issues the cookie on every authenticated request, resetting the 12 h window. Users are logged out if they make no API request for 12 consecutive hours.
+**Tamanho da sessão:** vem só do Supabase Auth (`[auth.sessions]`, compartilhado pelos 6 sistemas) — achado #46, decidido em 01/09/2026 como `timebox=24h` / `inactivity_timeout=8h`. **Não assuma que está valendo:** em 11/09/2026 nenhuma sessão tinha `not_after`. Conferir antes (`select count(*) filter (where not_after is not null) from auth.sessions`) e ver `C:\dev\Auditoria\PENDENCIAS.md`.
 
-**Inactivity/session-length limits:** this system's own 12h sliding window (above) is the only one actually enforcing anything. There used to be a `public/js/session.js` client-side 1h idle timer here, but it was never wired up to any page (`window._sessionInit` was never called) and was removed as dead code.
-
-The plan was for session length to come from the Supabase Auth level (`[auth.sessions]`, shared by all 6 Gato Preto systems) — achado #46, decided on 01/09/2026 as `timebox=24h` / `inactivity_timeout=8h`. **Do not assume it is in force:** on 11/09/2026 `auth.sessions` had 9 live sessions, the oldest 358h old and one idle for 215h, with `not_after` null on all of them — i.e. no timebox was applied. Verify before relying on it (`select count(*) filter (where not_after is not null) from auth.sessions`), and see `C:\dev\Auditoria\PENDENCIAS.md`.
-
-Note this system is unaffected either way for its own pages: access here is gated by the local `gp_auth` JWT, not by the Supabase session. The Supabase session only matters for the SSO bridge at login.
-
-**Logout:** no "Sair" button anymore. `POST /api/auth/logout` revokes and clears only this system's cookie (it no longer signs out of the Supabase session — that belongs to the Central); the public page calls it when the Central session is gone.
-
-**Cookie config:** `httpOnly: true`, `sameSite: 'lax'`, `maxAge: 12h`. `secure: true` when `NODE_ENV=production` (set this in production for HTTPS-only delivery).
-
-`middleware/auth.js` exports `authenticate` (any valid cookie JWT) and `requireAdmin` (role must be `'admin'`) for API routes, plus `isRevoked`, which `app.js` reuses for the page guards so the revocation check is not reimplemented there. `JWT_SECRET` **must** be set as an env var — the server throws at startup if missing.
-
-**Frontend state:** `gp_user` (JSON) is kept in localStorage for display (username, role check before first API call). It is cleared on logout. There is no `gp_token` in localStorage.
+**Restos da sessão antiga (até 08/10/2026):** cookie `gp_auth` (JWT HS256 de 12h com o papel dentro, assinado com `JWT_SECRET`, janela deslizante), `gp_csrf`, tabela `revoked_tokens`, rotas `/api/auth/sso`, `/logout`, `/login`, e `gp_user` no localStorage. O código não usa mais nada disso; as páginas apagam os cookies e o `sessao.js` apaga o `gp_user` que sobraram no navegador. **A tabela `revoked_tokens` e o `JWT_SECRET` no `.env` do servidor continuam lá de propósito** até o modelo novo estar estável em produção (decisão D4: permite voltar o código sem mexer no banco); depois saem numa migration própria, com `_ROLLBACK.sql`.
 
 ### User management
 
@@ -145,12 +132,13 @@ When deployed behind a path prefix (e.g. `/catalogo_produtos`), set `BASE_PATH=/
 
 See `app/.env.example` for the full list. Required:
 - `DATABASE_URL` — Supabase PostgreSQL connection string (transaction pooler)
-- `JWT_SECRET` — min 48 chars hex; server crashes at startup if missing
-- `SUPABASE_URL` — Supabase project URL
-- `SUPABASE_ANON_KEY` — Supabase anon key (used only for Supabase Auth during login)
+- `SUPABASE_URL` — Supabase project URL (JWKS for token checks, `/rest/v1/perfis`; also sent to the browser for supabase-js)
+- `SUPABASE_ANON_KEY` — Supabase anon key: reads `perfis` with the user's token and goes to the browser (it is public)
+
+`JWT_SECRET` is **no longer used** (08/10/2026). It stays in the server's `.env` only until the cleanup step (see "Restos da sessão antiga").
 
 Optional:
-- `NODE_ENV=production` — enables `Secure` flag on the session cookie (HTTPS-only); set in production
+- `NODE_ENV=production` — hides the stack trace on Express's error page and blocks `LOGIN_LOCAL`; set in production (comes from `ecosystem.config.js`)
 - `BASE_PATH` — path prefix when deployed behind a reverse proxy (e.g. `/catalogo_produtos`)
 - `UPLOAD_DIR` — absolute path for file uploads (default: `app/uploads/`); directory is created automatically if missing
 - `GOOGLE_SEARCH_API_KEY` + `GOOGLE_SEARCH_CX` — enables Google Custom Search for automatic image lookup (falls back to Bing scraping if not set)

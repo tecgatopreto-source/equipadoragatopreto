@@ -4,17 +4,10 @@ function escapeHtml(str) {
   if (str == null) return "";
   return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
-// Sem sessão de admin daqui: a página de passagem refaz o login único pela
-// Central (não há login próprio nem botão Sair — sai-se pela Central).
+// A sessão é conferida no fim do arquivo (SessaoGP.exigirArea, js/sessao.js) antes
+// de carregar qualquer dado. Sessão que cair depois (401): a página de passagem
+// refaz o login único pela Central (não há login próprio nem botão Sair).
 const ENTRAR = BASE + "/login?para=admin";
-const user = JSON.parse(localStorage.getItem("gp_user") || "null");
-if (!user || user.role !== "admin") {
-  location.href = ENTRAR;
-}
-
-function csrfToken() {
-  return document.cookie.match(/(?:^|; )gp_csrf=([^;]*)/)?.[1] || "";
-}
 
 // ── Sidebar mobile toggle ──────────────────────────────────────────────────
 function toggleSidebar() {
@@ -88,10 +81,9 @@ function goToProductsWithStatus(status) {
 
 // ── API helper ─────────────────────────────────────────────────────────────
 async function api(method, path, body) {
-  const res = await fetch(BASE + "/api" + path, {
+  const res = await SessaoGP.apiFetch("/api" + path, {
     method,
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+    headers: { "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
   let data;
@@ -101,7 +93,6 @@ async function api(method, path, body) {
     data = {};
   }
   if (res.status === 401) {
-    localStorage.removeItem("gp_user");
     location.href = ENTRAR;
     return;
   }
@@ -608,10 +599,8 @@ async function uploadImageFile() {
   }
   const formData = new FormData();
   formData.append("image", file);
-  const res = await fetch(BASE + `/api/products/${editingId}/images/upload`, {
+  const res = await SessaoGP.apiFetch(`/api/products/${editingId}/images/upload`, {
     method: "POST",
-    credentials: "same-origin",
-    headers: { "X-CSRF-Token": csrfToken() },
     body: formData,
   });
   const data = await res.json();
@@ -1281,10 +1270,8 @@ async function _doUploadPdf(type, file) {
 
   let res, data;
   try {
-    res = await fetch(BASE + `/api/documents/upload/${type}`, {
+    res = await SessaoGP.apiFetch(`/api/documents/upload/${type}`, {
       method: "POST",
-      credentials: "same-origin",
-      headers: { "X-CSRF-Token": csrfToken() },
       body: form,
     });
     data = await res.json();
@@ -1410,10 +1397,8 @@ async function processGruposPdf(file) {
   form.append("pdf", file);
   let res, data;
   try {
-    res = await fetch(BASE + "/api/documents/upload/grupos", {
+    res = await SessaoGP.apiFetch("/api/documents/upload/grupos", {
       method: "POST",
-      credentials: "same-origin",
-      headers: { "X-CSRF-Token": csrfToken() },
       body: form,
     });
     data = await res.json();
@@ -1587,10 +1572,13 @@ _restoreFilterButtons();
 // Restaura a seção que estava aberta (hash routing)
 const initHash = location.hash.replace("#", "");
 const initPage = VALID_PAGES.includes(initHash) ? initHash : "dashboard";
-navigate(initPage);
-// Carrega stats e action-stats explicitamente — navigate é síncrono, loadStats é async
-loadStats();
-loadActionStats();
+// Só carrega dado depois de conferir a sessão (admin; conferente vai para /conferente).
+SessaoGP.exigirArea("admin").then(() => {
+  navigate(initPage);
+  // Carrega stats e action-stats explicitamente — navigate é síncrono, loadStats é async
+  loadStats();
+  loadActionStats();
+});
 
 // ── Category autocomplete (após navigate para não bloquear init) ────────────
 (function initAdminCatAutocomplete() {
