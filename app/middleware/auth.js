@@ -104,6 +104,19 @@ function tokenDoCabecalho(req) {
   return h.startsWith('Bearer ') ? h.slice(7).trim() : null;
 }
 
+/**
+ * validarToken uma vez por requisição: o limitador (rateLimit.js) confere antes
+ * das rotas, e o authenticate reaproveita o mesmo resultado (inclusive o erro).
+ */
+function conferirTokenDaRequisicao(req, token) {
+  if (!req._tokenConferido || req._tokenConferido.token !== token) {
+    const promessa = validarToken(token);
+    promessa.catch(() => {}); // quem esperar recebe o erro; aqui só evita "unhandled rejection"
+    req._tokenConferido = { token, promessa };
+  }
+  return req._tokenConferido.promessa;
+}
+
 function responderErro(req, res, e) {
   if (e instanceof TokenExpirado) {
     console.warn(`[auth] 401 token vencido ip=${req.ip}`);
@@ -130,11 +143,12 @@ async function authenticate(req, res, next) {
   const token = tokenDoCabecalho(req);
   if (!token) return res.status(401).json({ error: 'Token não fornecido' });
   try {
-    const claims = await validarToken(token);
+    const claims = await conferirTokenDaRequisicao(req, token);
     const role = await lerPapel(token, claims.sub);
-    const email = typeof claims.email === 'string' ? claims.email : null;
-    // `username` = e-mail: é o que routes/documents.js grava no histórico de importação.
-    req.user = { id: claims.sub, email, username: email, role };
+    const email = typeof claims.email === 'string' && claims.email ? claims.email : null;
+    // `username` é o que routes/documents.js grava como quem importou: o e-mail, ou
+    // o id quando o token não traz e-mail (nunca vazio).
+    req.user = { id: claims.sub, email, username: email || claims.sub, role };
   } catch (e) {
     return responderErro(req, res, e);
   }
@@ -152,6 +166,6 @@ function requireAdmin(req, res, next) {
 }
 
 module.exports = {
-  authenticate, requireAdmin, validarToken, lerPapel, tokenDoCabecalho,
+  authenticate, requireAdmin, validarToken, lerPapel, tokenDoCabecalho, conferirTokenDaRequisicao,
   TokenInvalido, TokenExpirado, SemPerfil, ConferenciaIndisponivel, SISTEMA,
 };

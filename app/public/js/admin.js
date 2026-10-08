@@ -92,7 +92,9 @@ async function api(method, path, body) {
   } catch (_) {
     data = {};
   }
-  if (res.status === 401) {
+  // 401: a sessão caiu. 403: só a autenticação responde 403 aqui — a pessoa
+  // perdeu o admin (ou a conta mudou); a passagem confere e manda para a área certa.
+  if (res.status === 401 || res.status === 403) {
     location.href = ENTRAR;
     return;
   }

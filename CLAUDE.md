@@ -81,7 +81,8 @@ SVG category icons live in `svg/` and are served at `/svg/`. The frontend picks 
 **Frontend JS modules** (`public/js/`), loaded by every page in this order:
 - `vendor/supabase-2.103.2.min.js` — official UMD build of `@supabase/supabase-js` 2.103.2 (taken from the npm package on 08/10/2026; same version as the Financeiro). Served locally, no CDN.
 - `sessao-catalogo.js` — session decisions with no DOM/network (which button, `decidirPagina`, where to go, which screen), tested in `test/sessao-catalogo.test.js`
-- `sessao.js` — `window.SessaoGP`: the supabase-js client on `gp_session` (reads and refreshes the shared session), `apiFetch` (Bearer token; on 401 refreshes once and retries), `quemSou`, `exigirArea`, `aoSair`, `entrarComSenha` (local only). Reads the Supabase URL and anon key from `data-supabase-url` / `data-supabase-anon`, injected by `app.js`.
+- `sessao.js` — `window.SessaoGP`: the supabase-js client on `gp_session` (reads and refreshes the shared session), `apiFetch` (Bearer token; on 401 retries with a newer token — one another call/tab already got, or a single shared refresh), `quemSou` (never throws: errors → status 0), `exigirArea`, `aoMudarConta` (Sair at the Central, or another account in another tab → callback; ignores the SIGNED_IN supabase-js fires on tab focus), `entrarComSenha` (local only). Reads the Supabase URL and anon key from `data-supabase-url` / `data-supabase-anon`, injected by `app.js`. Tested in Node with fakes in `test/sessao-navegador.test.js`.
+- `/admin` and `/conferente` start hidden by their own CSS (`html:not([data-sessao]) body { visibility: hidden }` at the top of `style.admin.css` / `style.conferente.css`), so the shell never flashes; `exigirArea` sets `data-sessao` once the check is done (or to show the "tente de novo" screen).
 - `product-category-svg.js` — maps product name keywords to SVG filenames in `/svg/`
 - `admin.js`, `conferente.js`, `index.js`, `login.js` — page-specific logic; every API call goes through `SessaoGP.apiFetch`
 
@@ -112,7 +113,7 @@ SVG category icons live in `svg/` and are served at `/svg/`. The frontend picks 
 
 ### User management
 
-Access to this system is managed **exclusively via the GestaoSistemas portal**, which writes to `public.perfis(user_id, sistema, role)`. That includes creating users, granting and revoking access, and changing roles. This system only *reads* `perfis` at login — it has no user-management screen or endpoint of its own.
+Access to this system is managed **exclusively via the GestaoSistemas portal**, which writes to `public.perfis(user_id, sistema, role)`. That includes creating users, granting and revoking access, and changing roles. This system only *reads* `perfis` — on **every** API call, with the user's own token (see Authentication) — and has no user-management screen or endpoint of its own. Removing someone's access in the portal takes effect on their next call here.
 
 This was not always the case: `routes/users.js` used to let admins list users and change roles from inside the Catálogo. It was removed (tarefa 6.2 of `C:\dev\Auditoria\PLANO_ACAO_RBAC.md`) because it was a second write path into `public.perfis` — the table that controls access across all six systems — with its own copy of the valid-role list, which had already drifted from the central catalog `public.sistema_roles`.
 
@@ -120,7 +121,7 @@ The roles this system recognises are `admin` and `user` (shown as "Conferente" i
 
 ### RLS
 
-All database queries go through `pg.Pool` with `DATABASE_URL` (direct PostgreSQL connection), which bypasses Supabase RLS. Access control is enforced entirely at login via `public.perfis`. There are no RLS policies to maintain on this system's tables.
+All database queries go through `pg.Pool` with `DATABASE_URL` (direct PostgreSQL connection), which bypasses Supabase RLS. Access control is enforced in the API, on every call (`middleware/auth.js`: token signature + `public.perfis`). The tables do have RLS policies (using `has_system_access`, see README), but this backend never goes through them.
 
 ## Deployment (absam.io)
 

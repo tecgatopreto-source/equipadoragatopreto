@@ -35,8 +35,8 @@ if (formLocal) {
     btn.textContent = 'Entrando…';
     try {
       await SessaoGP.entrarComSenha(document.getElementById('email').value, document.getElementById('password').value);
-    } catch (_) {
-      document.getElementById('err-text').textContent = 'E-mail ou senha incorretos. Tente novamente.';
+    } catch (erro) {
+      document.getElementById('err-text').textContent = S.mensagemDoLoginLocal(erro);
       err.style.display = 'flex';
       btn.disabled = false;
       btn.textContent = 'Entrar';
