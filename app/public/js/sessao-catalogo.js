@@ -53,5 +53,21 @@
     return 'erro';
   }
 
-  return { botaoDoPainel, decidirPagina, destinoAposEntrar, telaDaPassagem };
+  /**
+   * Login local (LOGIN_LOCAL=1): mensagem a partir do erro do supabase-js. Só
+   * credencial errada vira "senha incorreta" — rede, Supabase fora ou bloqueio por
+   * excesso de tentativas não podem mandar a pessoa tentar a senha de novo.
+   */
+  function mensagemDoLoginLocal(erro) {
+    const status = erro && erro.status;
+    const codigo = erro && erro.code;
+    if (codigo === 'invalid_credentials' || (status === 400 && /invalid login credentials/i.test((erro && erro.message) || ''))) {
+      return 'E-mail ou senha incorretos. Tente novamente.';
+    }
+    if (status === 429 || codigo === 'over_request_rate_limit') return 'Muitas tentativas. Aguarde alguns minutos e tente de novo.';
+    if (codigo === 'email_not_confirmed') return 'E-mail ainda não confirmado.';
+    return 'Não foi possível entrar agora. Tente de novo.';
+  }
+
+  return { botaoDoPainel, decidirPagina, destinoAposEntrar, telaDaPassagem, mensagemDoLoginLocal };
 });

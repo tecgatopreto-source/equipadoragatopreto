@@ -101,6 +101,18 @@ test('perfis em formato inesperado: 503', async () => {
   }
 });
 
+test('token sem e-mail: username vira o id (quem importou nunca fica vazio)', async () => {
+  const semEmail = await new SignJWT({ role: 'authenticated' })
+    .setProtectedHeader({ alg: 'ES256', kid: 'kid-de-teste' })
+    .setSubject(t.USUARIOS.admin.id).setAudience('authenticated').setExpirationTime('1h')
+    .sign(t.supabase.privateKey);
+  const r = await me(semEmail);
+  assert.equal(r.status, 200);
+  const { user } = await r.json();
+  assert.equal(user.email, null);
+  assert.equal(user.username, t.USUARIOS.admin.id);
+});
+
 test('a importação grava o e-mail de quem importou (req.user.username)', async () => {
   // routes/documents.js usa req.user.username; garante que continua sendo o e-mail.
   const { authenticate } = require('../middleware/auth');

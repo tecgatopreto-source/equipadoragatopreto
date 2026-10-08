@@ -1,6 +1,6 @@
 // Sessão do Catálogo no navegador (ADR 0010; plano de 08/10/2026). Vira
 // `window.SessaoGP`. Precisa, antes dele: js/vendor/supabase-*.min.js e
-// js/sessao-catalogo.js.
+// js/sessao-catalogo.js. Testado em test/sessao-navegador.test.js.
 //
 // Não há sessão própria nem cookie: o supabase-js lê a `gp_session` que a Central
 // grava (mesma origem em produção) e a RENOVA sozinho (coordenando as abas), como
@@ -23,10 +23,21 @@
     return data && data.session ? data.session.access_token : null;
   }
 
+  // Uma renovação por vez: várias chamadas que voltam 401 juntas esperam a mesma,
+  // em vez de cada uma girar o refresh token da sessão compartilhada pelos 6 sistemas.
+  let renovando = null;
+  function renovar() {
+    renovando ||= cliente.auth.refreshSession()
+      .then(({ data }) => (data && data.session ? data.session.access_token : null))
+      .catch(() => null)
+      .finally(() => { renovando = null; });
+    return renovando;
+  }
+
   /**
    * fetch na API daqui com o token da sessão. `caminho` começa em /api. Em 401,
-   * renova a sessão uma vez e tenta de novo (o token pode ter vencido no caminho).
-   * Devolve a Response; quem chama decide o que fazer com o status.
+   * tenta de novo com um token novo: o que outra chamada (ou aba) já renovou, ou
+   * renova uma vez. Devolve a Response; quem chama decide o que fazer com o status.
    */
   async function apiFetch(caminho, opcoes = {}) {
     const pedir = (token) => fetch(BASE + caminho, {
@@ -36,22 +47,41 @@
     const token = await tokenAtual();
     const r = await pedir(token);
     if (r.status !== 401 || !token) return r;
-    const { data } = await cliente.auth.refreshSession();
-    const novo = data && data.session ? data.session.access_token : null;
+    let novo = await tokenAtual();
+    if (novo === token) novo = await renovar();
     return novo && novo !== token ? pedir(novo) : r;
   }
 
-  /** Quem sou no Catálogo: { status, usuario }. Sem sessão: 401 sem chamar a API; rede: 0. */
+  /** Quem sou no Catálogo: { status, usuario }. Sem sessão: 401 sem chamar a API; erro/rede: 0. */
   async function quemSou() {
-    if (!(await tokenAtual())) return { status: 401, usuario: null };
     try {
+      if (!(await tokenAtual())) return { status: 401, usuario: null };
       const r = await apiFetch('/api/auth/me');
       const corpo = await r.json().catch(() => ({}));
       return { status: r.status, usuario: r.ok ? corpo.user : null };
     } catch (_) {
+      // Inclui getSession falhando (ex.: disputa de lock entre abas, storage bloqueado).
       return { status: 0, usuario: null };
     }
   }
+
+  /**
+   * Chama `fn` quando a sessão compartilhada termina (Sair na Central) ou passa a
+   * ser de OUTRA conta (entrou com outra pessoa em outra aba). `idAtual()` diz a
+   * conta que a página está mostrando (null = ninguém). O supabase-js também manda
+   * SIGNED_IN quando a aba volta a ficar visível, sem mudança nenhuma — por isso a
+   * comparação do id (mesmo cuidado do Estoque, features/entrada/estado.js).
+   */
+  function aoMudarConta(idAtual, fn) {
+    cliente.auth.onAuthStateChange((evento, sessao) => {
+      const id = sessao && sessao.user ? sessao.user.id : null;
+      if (evento === 'SIGNED_OUT' || (evento === 'SIGNED_IN' && id !== idAtual())) fn();
+    });
+  }
+
+  // /admin e /conferente começam escondidos pelo próprio CSS da página
+  // (html:not([data-sessao]) body), antes de qualquer desenho; isto os mostra.
+  function mostrarPagina() { document.documentElement.dataset.sessao = 'conferida'; }
 
   function mostrarErroDeAcesso() {
     const caixa = document.createElement('div');
@@ -65,6 +95,7 @@
     botao.addEventListener('click', () => location.reload());
     caixa.append(texto, botao);
     document.body.replaceChildren(caixa);
+    mostrarPagina();
   }
 
   /**
@@ -73,25 +104,18 @@
    * (ou mostra o erro) e a promessa nunca resolve — a página não segue.
    */
   async function exigirArea(area) {
-    const raiz = document.documentElement;
-    raiz.style.visibility = 'hidden';
     const { status, usuario } = await quemSou();
     const decisao = window.SessaoCatalogo.decidirPagina(area, status, usuario && usuario.role);
     if (decisao === 'liberado') {
-      raiz.style.visibility = '';
-      // Saiu pela Central (em qualquer aba): volta para a passagem.
-      aoSair(() => location.replace(`${BASE}/login?para=${area}`));
+      mostrarPagina();
+      // Saiu pela Central ou trocou de conta (em qualquer aba): confere tudo de novo.
+      aoMudarConta(() => usuario.id, () => location.reload());
       return usuario;
     }
     if (decisao === 'conferente') location.replace(BASE + '/conferente');
     else if (decisao === 'entrar') location.replace(`${BASE}/login?para=${area}`);
-    else { raiz.style.visibility = ''; mostrarErroDeAcesso(); }
+    else mostrarErroDeAcesso();
     return new Promise(() => {});
-  }
-
-  /** Chama `fn` quando a sessão compartilhada termina (Sair na Central). */
-  function aoSair(fn) {
-    cliente.auth.onAuthStateChange((evento) => { if (evento === 'SIGNED_OUT') fn(); });
   }
 
   /** Só no modo local (LOGIN_LOCAL=1): entra por senha e grava a gp_session local. */
@@ -100,5 +124,5 @@
     if (error) throw error;
   }
 
-  window.SessaoGP = { BASE, apiFetch, quemSou, exigirArea, aoSair, entrarComSenha, tokenAtual };
+  window.SessaoGP = { BASE, apiFetch, quemSou, exigirArea, aoMudarConta, entrarComSenha, tokenAtual };
 })();

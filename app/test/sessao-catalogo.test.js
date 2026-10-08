@@ -43,6 +43,16 @@ test('destinoAposEntrar: respeita o pedido só dentro do que o papel permite', (
   assert.equal(S.destinoAposEntrar('admin', 'https://fora.com'), '/admin');
 });
 
+test('mensagemDoLoginLocal: só credencial errada vira "senha incorreta"', () => {
+  const senha = 'E-mail ou senha incorretos. Tente novamente.';
+  assert.equal(S.mensagemDoLoginLocal({ status: 400, code: 'invalid_credentials' }), senha);
+  assert.equal(S.mensagemDoLoginLocal({ status: 400, message: 'Invalid login credentials' }), senha);
+  assert.match(S.mensagemDoLoginLocal({ status: 429 }), /Muitas tentativas/);
+  assert.match(S.mensagemDoLoginLocal({ status: 400, code: 'email_not_confirmed' }), /não confirmado/);
+  assert.match(S.mensagemDoLoginLocal({ status: 0, message: 'Failed to fetch' }), /Não foi possível entrar agora/);
+  assert.match(S.mensagemDoLoginLocal(new Error('rede')), /Não foi possível entrar agora/);
+});
+
 test('telaDaPassagem: o que mostrar quando /api/auth/me não liberou', () => {
   assert.equal(S.telaDaPassagem(401), 'entrar');
   assert.equal(S.telaDaPassagem(403), 'sem_acesso');

@@ -21,12 +21,12 @@ function definirUsuario(novo) {
 
 // Confere a sessão em silêncio ao abrir. Visitante sem sessão da Central: nenhuma
 // chamada (quemSou responde 401 sem ir à API). Com sessão: /api/auth/me diz o papel.
-// Sair pela Central (em qualquer aba) tira o botão na hora.
 async function iniciarSessao() {
   const { usuario } = await SessaoGP.quemSou();
   definirUsuario(usuario);
-  SessaoGP.aoSair(() => definirUsuario(null));
 }
+// Sair pela Central, ou entrar/trocar de conta em outra aba: confere de novo.
+SessaoGP.aoMudarConta(() => (user ? user.id : null), iniciarSessao);
 
 // ── State ──────────────────────────────────────────────────────────────────
 const _mpSvgDefault = document.getElementById('mp-svg')?.innerHTML || '';

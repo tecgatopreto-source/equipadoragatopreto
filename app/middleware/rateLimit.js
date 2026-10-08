@@ -1,16 +1,17 @@
 const rateLimit = require('express-rate-limit');
-const { tokenDoCabecalho, validarToken } = require('./auth');
+const { tokenDoCabecalho, conferirTokenDaRequisicao } = require('./auth');
 
 // Escopa o limite por usuário — não por IP, já que vários usuários podem estar
 // atrás do mesmo IP corporativo/NAT. Só usa o `sub` de um token com ASSINATURA
 // CONFERIDA: este limiter roda antes da autenticação das rotas, e um `sub` lido
 // sem conferir deixaria qualquer um gastar o limite de outra pessoa. Sem token
-// válido, cai pro IP. (Conferir a assinatura é local: o JWKS fica em memória.)
+// válido, cai pro IP. A conferência fica guardada na requisição e o authenticate
+// das rotas reaproveita (uma conferência por requisição).
 async function _userOrIpKey(req) {
   const token = tokenDoCabecalho(req);
   if (token) {
     try {
-      return `user:${(await validarToken(token)).sub}`;
+      return `user:${(await conferirTokenDaRequisicao(req, token)).sub}`;
     } catch { /* token ausente/inválido/vencido ou JWKS fora: cai pro IP abaixo */ }
   }
   return rateLimit.ipKeyGenerator(req.ip);

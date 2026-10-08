@@ -1,3 +1,7 @@
+/* Página protegida: fica escondida até js/sessao.js conferir a sessão (SessaoGP.exigirArea
+   marca <html data-sessao>). Esconder aqui, no <head>, evita a casca piscar antes do JS. */
+html:not([data-sessao]) body { visibility: hidden; }
+
 :root {
   /* cor de marca, neutros e superfícies vêm de tokens.css (paleta unificada) */
   --green: #15803d;
