@@ -107,6 +107,9 @@ app.get('/api/health', async (_, res) => {
 app.use('/api/auth',      require('./routes/auth'));
 app.use('/api/products',  require('./routes/products'));
 app.use('/api/documents', require('./routes/documents'));
+// Qualquer outro /api/... é 404 em JSON. Sem isto caía no `/*` das páginas e
+// voltava 200 com o HTML do catálogo, o que esconde erro de rota digitada errado.
+app.use('/api', (_req, res) => res.status(404).json({ error: 'Rota não encontrada.' }));
 
 // ── Páginas (sempre na raiz) ──────────────────────────────────────────────────
 // Sem proteção no servidor (decisão D1 de 08/10/2026): o token vai no header
