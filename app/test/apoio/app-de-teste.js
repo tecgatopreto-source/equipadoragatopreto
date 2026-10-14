@@ -73,13 +73,20 @@ async function assinarToken(supabase, quem = 'admin', op = {}) {
     .sign(op.chave ?? supabase.privateKey);
 }
 
-// Troca db/schema por um falso ANTES de o app carregar.
+// Troca db/schema por um falso ANTES de o app carregar. Guarda cada consulta
+// ({ sql, params }) em `consultas`; COUNT(*) responde n = 0, o resto, nenhuma linha.
+const consultas = [];
 function trocarBanco() {
   const caminho = require.resolve(path.join(__dirname, '..', '..', 'db', 'schema'));
   const falso = {
     DB_SCHEMA: 'Teste',
     initDb: async () => {},
-    getDb: () => ({ query: async () => ({ rows: [] }) }),
+    getDb: () => ({
+      query: async (sql, params) => {
+        consultas.push({ sql, params });
+        return { rows: /COUNT\(\*\)/i.test(sql) ? [{ n: '0' }] : [] };
+      },
+    }),
   };
   require.cache[caminho] = { id: caminho, filename: caminho, loaded: true, exports: falso };
 }
@@ -110,7 +117,7 @@ async function subirApp(ambiente = {}) {
   });
 
   return {
-    app, pedir, supabase, USUARIOS,
+    app, pedir, supabase, USUARIOS, consultas,
     token: (quem, op) => assinarToken(supabase, quem, op),
     fechar: () => { servidor.close(); supabase.fechar(); },
   };

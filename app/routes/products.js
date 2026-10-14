@@ -135,15 +135,43 @@ router.get('/categories', async (_req, res) => {
   }
 });
 
+// Paginação por página (page + limit → LIMIT/OFFSET). A rota é pública: sem
+// teto, `?limit=100000` puxava o catálogo inteiro numa chamada. As telas pedem
+// 20, 24 e 25. Valor fora da regra é 400 (antes virava NaN no SQL e dava 500).
+const LIMITE_PADRAO = 60;
+const LIMITE_MAX    = 100;
+const STATUS_VALIDOS = new Set(['T', '0', '1', '2']);
+
+function inteiroEntre(valor, padrao, min, max) {
+  if (valor === undefined) return padrao;
+  if (typeof valor !== 'string' || !/^\d{1,9}$/.test(valor)) return null;
+  const n = Number(valor);
+  return n >= min && n <= max ? n : null;
+}
+
+/** { page, limit, status } validados, ou { erro } com a mensagem do 400. */
+function lerFiltrosDaLista(query) {
+  const page  = inteiroEntre(query.page, 1, 1, Number.MAX_SAFE_INTEGER);
+  const limit = inteiroEntre(query.limit, LIMITE_PADRAO, 1, LIMITE_MAX);
+  const status = query.status === undefined || query.status === '' ? 'T' : query.status;
+  if (page === null)  return { erro: 'page deve ser um número inteiro a partir de 1.' };
+  if (limit === null) return { erro: `limit deve ser um número inteiro de 1 a ${LIMITE_MAX}.` };
+  if (!STATUS_VALIDOS.has(status)) return { erro: 'status deve ser T, 0, 1 ou 2.' };
+  return { page, limit, status };
+}
+
 // ── GET /api/products ──────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
-  const { q = '', name_q = '', code_q = '', status = 'T', page = 1, limit = 60, sort = 'id', order = 'asc' } = req.query;
+  const filtros = lerFiltrosDaLista(req.query);
+  if (filtros.erro) return res.status(400).json({ error: filtros.erro });
+  const { page, limit, status } = filtros;
+  const { q = '', name_q = '', code_q = '', sort = 'id', order = 'asc' } = req.query;
   const { fiscal_alert: _cfa, disabled: _cdis, cat: _ccat, capota_type: _cct } = req.query;
   const cacheKey = `products:${q}|${name_q}|${code_q}|${status}|${page}|${limit}|${sort}|${order}|${_cfa ?? ''}|${_cdis ?? ''}|${_ccat ?? ''}|${_cct ?? ''}`;
   const cached = cache.get(cacheKey);
   if (cached) return res.json(cached);
   const pool = getDb();
-  const off = (parseInt(page) - 1) * parseInt(limit);
+  const off = (page - 1) * limit;
 
   const SORT_MAP = {
     id:              'p.id',
@@ -195,7 +223,7 @@ router.get('/', async (req, res) => {
     }
   }
   if (status !== 'T') {
-    params.push(parseInt(status));
+    params.push(Number(status));
     conditions.push(`p.status = $${params.length}`);
   }
 
@@ -226,9 +254,12 @@ router.get('/', async (req, res) => {
   } else {
     orderBy = `${sortCol} ${sortDir}`;
   }
+  // Desempate pela chave: sem ele, produtos com o mesmo nome/preço/estoque podem
+  // trocar de lugar entre uma consulta e outra, repetindo ou sumindo entre páginas.
+  if (sortCol !== 'p.id') orderBy += ', p.id';
 
   try {
-    const dataParams = [...params, parseInt(limit), off];
+    const dataParams = [...params, limit, off];
     const t0 = Date.now();
 
     const [countResult, dataResult] = await Promise.all([
@@ -260,7 +291,7 @@ router.get('/', async (req, res) => {
     const rows = dataResult.rows;
     console.log(`[perf] GET /products q="${q||name_q||code_q}" → ${rows.length} rows em ${Date.now() - t0}ms`);
 
-    const result = { total, page: parseInt(page), limit: parseInt(limit), products: rows };
+    const result = { total, page, limit, products: rows };
     cache.set(cacheKey, result, TTL_PRODUCTS);
     res.json(result);
   } catch (err) {

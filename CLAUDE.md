@@ -24,7 +24,7 @@ npm run dev
 npm test
 ```
 
-No linter configured. **Tests never touch Supabase nor the database** (there is no dev database: local = production): `test/apoio/app-de-teste.js` starts the app on a free port with a fake Supabase (local HTTP server serving the JWKS with an EC key generated in the test, and `/rest/v1/perfis`) and swaps `db/schema` for an in-memory fake before `app.js` loads. Tokens are really signed (ES256), so signature, expiry, `aud` and role checks run as in production. Each test file runs in its own process (the JWKS cache and the rate-limit counter are per process — that is why `jwks-fora` and `limite` have their own files).
+No linter configured. **Tests never touch Supabase nor the database** (there is no dev database: local = production): `test/apoio/app-de-teste.js` starts the app on a free port with a fake Supabase (local HTTP server serving the JWKS with an EC key generated in the test, and `/rest/v1/perfis`) and swaps `db/schema` for an in-memory fake before `app.js` loads (it records every query in `consultas` and answers `COUNT(*)` with `n = 0`, everything else with no rows). Tokens are really signed (ES256), so signature, expiry, `aud` and role checks run as in production. Each test file runs in its own process (the JWKS cache and the rate-limit counter are per process — that is why `jwks-fora` and `limite` have their own files).
 
 **Local login:** in production the only way in is the Central (single sign-on). Locally the Central runs on another port (another origin) and can't share `gp_session`, so put `LOGIN_LOCAL=1` in `app/.env` to get the password form on `/login`. The form signs in with supabase-js in the browser (writes a local `gp_session`); the server has no login route (see `config.js`; the server refuses to start with `LOGIN_LOCAL=1` and `NODE_ENV=production`).
 
@@ -39,6 +39,8 @@ Single-process Express app backed by **PostgreSQL via Supabase** (`pg` pool). Al
 **Routes:**
 - `routes/auth.js` — only `GET /api/auth/me` (`{ id, email, username, role }`, role read from `public.perfis` right now). There is no login, SSO bridge or logout route anymore.
 - `routes/products.js` — full CRUD for products, image upload/management (file, URL, or automatic web search), reports
+  - `GET /api/products` (public) paginates by page: `page` (integer ≥ 1, default 1) and `limit` (integer 1–100, default 60) become `LIMIT/OFFSET`; `status` must be `T`, `0`, `1`, `2` or empty. Anything else is **400** with `{ error }` before touching the database (until 14/10/2026 there was no cap — `?limit=100000` pulled the whole catalog — and bad values became `NaN` in SQL → 500). The screens ask for 20 (conferente), 24 (public) and 25 (admin). `ORDER BY` always ends with `p.id` as a tiebreaker, so rows with equal sort values don't repeat or vanish between pages. Covered by `test/paginacao.test.js`.
+- Any other `/api/...` path is **404 JSON** (`{ error: 'Rota não encontrada.' }`), registered in `app.js` right after the routers and before the page fallbacks — without it, `/api/<typo>` fell into `/*` and answered 200 with the catalog HTML.
 - `routes/documents.js` — PDF upload and fiscal/gerencial import
 
 **Health check:** `GET /api/health` — queries `COUNT(*) FROM products` and returns `{ ok, products }`.
