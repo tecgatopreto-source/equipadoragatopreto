@@ -51,6 +51,9 @@ const adminHtml      = renderHtml('admin.html');
 const conferenteHtml = renderHtml('conferente.html');
 const indexHtml      = renderHtml('index.html');
 const loginHtml      = renderHtml('login.html');
+// 404 sem JS nem sessão: só troca o __BASE__ dos caminhos absolutos pelo prefixo.
+const naoEncontradoHtml = fs.readFileSync(path.join(__dirname, 'public', '404.html'), 'utf8')
+  .replace(/__BASE__/g, BASE);
 
 // Headers de segurança (achado #25 da auditoria). CSP sem 'unsafe-inline' em
 // script-src — só é possível porque todo onclick/onerror inline foi
@@ -139,6 +142,12 @@ app.get('/login',       pagina(passagemHtml));
 app.get('/login.html',  pagina(passagemHtml));
 app.get('/admin*',      pagina(adminHtml));
 app.get('/conferente*', pagina(conferenteHtml));
-app.get('/*',           pagina(indexHtml));
+app.get(['/', '/index.html'], pagina(indexHtml));
+
+// Qualquer outro caminho é 404 com página própria. Até 15/10/2026 havia um `/*`
+// aqui que devolvia o catálogo com 200 para tudo, inclusive .js/.png inexistentes
+// (o navegador recebia HTML no lugar do arquivo). O admin troca de tela pelo
+// #hash, que não chega ao servidor, então não precisa de fallback.
+app.use((_req, res) => res.status(404).type('html').send(naoEncontradoHtml));
 
 module.exports = { app, BASE, LOGIN_LOCAL };
