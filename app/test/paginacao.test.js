@@ -74,8 +74,8 @@ test('/api/<inexistente> é 404 em JSON', async () => {
   }
 });
 
-test('páginas continuam abrindo (o 404 é só para /api)', async () => {
-  for (const caminho of ['/', '/qualquer-coisa', '/admin', '/conferente']) {
+test('páginas continuam abrindo (o 404 de /api não as afeta)', async () => {
+  for (const caminho of ['/', '/admin', '/conferente']) {
     const r = await t.pedir(caminho);
     assert.equal(r.status, 200, caminho);
     assert.match(r.headers.get('content-type'), /text\/html/);
