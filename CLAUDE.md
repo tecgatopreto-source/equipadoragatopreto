@@ -45,7 +45,7 @@ Single-process Express app backed by **PostgreSQL via Supabase** (`pg` pool). Al
 
 **Health check:** `GET /api/health` — queries `COUNT(*) FROM products` and returns `{ ok, products }`.
 
-**Database:** `db/schema.js` exports `getDb()` which returns a `pg.Pool` connected to Supabase via `DATABASE_URL`. The pool sets `search_path` and `timezone = 'America/Sao_Paulo'` on every new connection. All queries use this direct connection — RLS is bypassed entirely (access control is enforced at login). Schema (in Supabase): `products`, `product_images`, `product_audit`, `uploaded_documents`, `import_history`. Schema changes go in `app/db/migrations/` (with a `_ROLLBACK.sql`), applied by hand at deploy.
+**Database:** `db/schema.js` exports `getDb()` which returns a `pg.Pool` connected to Supabase via `DATABASE_URL`. The pool sets `search_path` and `timezone = 'America/Sao_Paulo'` on every new connection. All queries use this direct connection — RLS is bypassed entirely (access control is enforced in the API). **The connection role is `catalogo_produtos_app`, not `postgres`** (achado M2 of Auditoria 3, ADR 0011 in `C:\dev\Doc\adr`): `BYPASSRLS`, CRUD on the 5 tables, `SELECT`/`MAINTAIN` on the materialized view `product_stats` (MAINTAIN is what lets it run `REFRESH` without owning it), nothing outside `CatalogoProdutos` — no `auth.users`, no `public.perfis`. It owns nothing, so it can't change structure. Defined in `app/db/migrations/20261022_papel_catalogo_produtos_app.sql`; the password stays out of git and must be letters and digits only (`server.js` builds the connection with `decodeURIComponent`). **A new table/view the code uses needs a GRANT in its migration** — and the `REFRESH` of `product_stats` only logs its error, so a missing grant there freezes the totals without breaking any screen. Schema (in Supabase): `products`, `product_images`, `product_audit`, `uploaded_documents`, `import_history`. Schema changes go in `app/db/migrations/` (with a `_ROLLBACK.sql`), applied by hand at deploy.
 
 **Name search:** `products.search_vector_name` is a generated tsvector (unaccented, punctuation → space, `'simple'` config, GIN index). `ftsPrefixQuery` in `routes/products.js` must mirror that normalization and queries with `to_tsquery('simple', ...)`. The Estoque system reads the same column, so changing it changes both searches.
 
@@ -123,7 +123,7 @@ The roles this system recognises are `admin` and `user` (shown as "Conferente" i
 
 ### RLS
 
-All database queries go through `pg.Pool` with `DATABASE_URL` (direct PostgreSQL connection), which bypasses Supabase RLS. Access control is enforced in the API, on every call (`middleware/auth.js`: token signature + `public.perfis`). The tables do have RLS policies (using `has_system_access`, see README), but this backend never goes through them.
+All database queries go through `pg.Pool` with `DATABASE_URL` (direct PostgreSQL connection as `catalogo_produtos_app`, which has `BYPASSRLS`), which bypasses Supabase RLS. Access control is enforced in the API, on every call (`middleware/auth.js`: token signature + `public.perfis`). The tables do have RLS policies (using `has_system_access`, see README), but this backend never goes through them. What limits the backend at the database level are the role's GRANTs (see Database).
 
 ## Deployment (absam.io)
 
