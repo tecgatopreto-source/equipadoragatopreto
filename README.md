@@ -60,7 +60,7 @@ Testes: `npm test` (dentro de `app/`). Não tocam o Supabase nem o banco.
 
 | Variável | Obrigatória | O que é |
 |---|---|---|
-| `DATABASE_URL` | Sim | Conexão direta com o banco (ignora a RLS) |
+| `DATABASE_URL` | Sim | Conexão direta com o banco como `catalogo_produtos_app` (ignora a RLS, mas só alcança o schema `CatalogoProdutos`) |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Sim | Conferir o token (JWKS) e o perfil; também vão para o navegador (a anon key é pública) |
 | `JWT_SECRET` | Não | **Não é mais usada** (08/10/2026). Fica no servidor só até a limpeza final, para permitir voltar a versão anterior |
 | `GOOGLE_SEARCH_API_KEY`, `GOOGLE_SEARCH_CX` | Não | Busca de imagens pelo Google (sem elas, usa o Bing) |
@@ -71,7 +71,8 @@ Testes: `npm test` (dentro de `app/`). Não tocam o Supabase nem o banco.
 
 - Schema `CatalogoProdutos`: `products`, `product_images`, `product_audit`, `uploaded_documents`, `import_history`, `revoked_tokens` (sem uso desde 08/10/2026; sai numa migration depois que a sessão nova estiver estável). Views `v_product_stats` e `v_products_with_images`.
 - Triggers em `products`: `audit_product_changes` e `calc_product_status`.
-- As tabelas **têm** policies de RLS (usando `has_system_access`), mas o backend não passa por elas porque usa conexão direta. O CLAUDE.md diz que não há policies; o banco mostra que há.
+- As tabelas **têm** policies de RLS (usando `has_system_access`), mas o backend não passa por elas: conecta como `catalogo_produtos_app`, que tem `BYPASSRLS`. O que limita o backend são os GRANTs: CRUD nas 5 tabelas, `SELECT`/`MAINTAIN` na materialized view `product_stats` (para o `REFRESH`) e nada fora do schema (sem `auth.users`, sem `public.perfis`). Definição em `app/db/migrations/20261022_papel_catalogo_produtos_app.sql` (achado M2 da Auditoria 3, ADR 0011 em `C:\dev\Doc\adr`).
+- **Tabela ou view nova que o código usa precisa de GRANT na migration**, senão dá `permission denied`. Ex.: o `REFRESH` do `product_stats` só loga o erro, então a falta do grant deixa os totais congelados sem quebrar a tela.
 - Imagens enviadas ficam no disco do servidor (`UPLOAD_DIR/product-images/`), **fora do backup do Supabase**.
 - **Outros dependem deste:** a tela Início da Central lê `products` e `import_history` pela função `public.gp_acoes_pendentes()`; o Sistema de Estoque lê `products` (inclusive `search_vector_name`, a busca por nome) e `import_history`.
 - **Busca por nome:** coluna gerada `search_vector_name` (nome sem acento, pontuação como separador, configuração `simple`) com índice GIN. A consulta é montada por `ftsPrefixQuery` em `routes/products.js` com a mesma regra: cada palavra vira começo de palavra, todas obrigatórias, e partes grudadas por pontuação ("1.4", "p.choque") precisam estar vizinhas.
