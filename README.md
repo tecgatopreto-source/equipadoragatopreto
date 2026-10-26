@@ -80,9 +80,13 @@ Testes: `npm test` (dentro de `app/`). Não tocam o Supabase nem o banco.
 
 ## Deploy
 
-`C:\dev\deploy\deploy.ps1` → entrada `catalogo-produtos`. No servidor: `/var/www/catalogo_produtos`, `npm install` e `pm2 restart catalogo_produtos`.
+**Automático:** cada push na `main` roda `.github/workflows/deploy.yml`: `npm test` em `app/` (Supabase e banco falsos, sem `.env`) e, se passar, o deploy no servidor (`/usr/local/bin/deploy-catalogo.sh`: `git pull --ff-only`, `npm install`, `pm2 restart catalogo_produtos` e espera `/api/health` responder na 3001 por até 30 s; o health consulta o banco). Detalhes: `C:\dev\Doc\deploy-automatico.md`.
 
-Se o deploy trouxer migration nova em `app/db/migrations/`, aplique-a no banco **junto com** o restart (a busca nova e a coluna nova precisam estar no ar juntas).
+**Manual:** `C:\dev\deploy\deploy.ps1` → entrada `catalogo-produtos` (com senha).
+
+Se o deploy trouxer migration nova em `app/db/migrations/`, ela e o código precisam estar no ar juntos (a busca nova e a coluna nova). Como o merge já faz o deploy, aplique a migration no banco **logo antes** do merge do PR.
+
+**Este repositório é público:** o código e os logs do Actions (inclusive a saída do deploy) ficam visíveis para qualquer pessoa. Os secrets não aparecem.
 
 ## Fluxos críticos (conferir antes de cada deploy)
 

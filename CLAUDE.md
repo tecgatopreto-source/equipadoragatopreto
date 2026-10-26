@@ -129,6 +129,8 @@ All database queries go through `pg.Pool` with `DATABASE_URL` (direct PostgreSQL
 
 The project runs on a server at **absam.io** behind an Nginx reverse proxy. `entrypoint.sh` runs `node server.js`. Database is hosted on Supabase — no local DB files needed.
 
+**Automatic deploy (26/10/2026):** every push to `main` runs `.github/workflows/deploy.yml` — `npm test` in `app/`, then SSH with a key locked (`command=` in `authorized_keys`) to `/usr/local/bin/deploy-catalogo.sh` (pull, `npm install`, `pm2 restart catalogo_produtos`, waits for `/api/health` on 3001). A failing test blocks the deploy; tests must keep working without `.env`. A migration must be applied before merging the PR that needs it. Scripts and keys: `C:\dev\Doc\deploy-automatico.md`.
+
 When deployed behind a path prefix (e.g. `/catalogo_produtos`), set `BASE_PATH=/catalogo_produtos`. Nginx strips the prefix before forwarding to Express; the app uses `BASE_PATH` only to inject `window.APP_BASE` into HTML for client-side routing.
 
 ## Environment Variables
