@@ -1,0 +1,53 @@
+# Testa e faz o deploy do Catálogo de Produtos a cada push na main.
+# O servidor só aceita esta chave para rodar /usr/local/bin/deploy-catalogo.sh
+# (forced command no authorized_keys), então o comando enviado aqui é ignorado.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Um deploy por vez; um push novo espera o anterior terminar.
+concurrency:
+  group: deploy-catalogo
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      # Os testes sobem o app com Supabase e banco falsos (test/apoio/app-de-teste.js),
+      # então não precisam de .env.
+      - name: Testes
+        working-directory: app
+        run: |
+          npm ci
+          npm test
+
+  deploy:
+    needs: testes
+    runs-on: ubuntu-latest
+    environment: producao
+    steps:
+      - name: Deploy no servidor
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes root@45.178.180.174 deploy
