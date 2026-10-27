@@ -13,6 +13,9 @@ try {
 }
 const { app, BASE, LOGIN_LOCAL } = montado;
 const PORT = process.env.PORT || 3001;
+// Só aceita conexão de dentro da máquina: em produção quem chega é o nginx, e sem
+// isto a 3001 ficava aberta na internet, contornando o nginx (achado M4 da Auditoria 3).
+const HOST = '127.0.0.1';
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 // initDb() resolve o hostname para IPv4 e cria o pool com host literal (sem DNS no pg)
@@ -26,7 +29,7 @@ const { initDb, getDb } = require('./db/schema');
   } catch (e) {
     console.warn('[db] Aquecimento falhou (servidor sobe mesmo assim):', e.message);
   }
-  app.listen(PORT, () => {
+  app.listen(PORT, HOST, () => {
     console.log(`\n Gato Preto — Catálogo Online`);
     console.log(`   Local:     http://localhost:${PORT}/`);
     if (BASE) console.log(`   Produção: http://servidor${BASE}/`);
