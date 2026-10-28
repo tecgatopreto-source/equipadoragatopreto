@@ -183,11 +183,11 @@ function renderCards(products) {
         ${p.pinned_img
           ? `<img class="ci-photo" data-src="${escapeHtml(p.pinned_img)}" alt="" loading="lazy">`
           : getCategoryPlaceholder(p.name, p.categoria, p.is_disabled)}
-        <div class="card-ref">#${p.id}</div>
+        <div class="card-ref">#${escapeHtml(p.id)}</div>
       </div>
       <div class="card-body">
         <div class="card-code">
-          <span>Ref. ${p.id}</span>
+          <span>Ref. ${escapeHtml(p.id)}</span>
           ${p.categoria ? `<span class="card-cat">${escapeHtml(p.categoria)}</span>` : ''}
         </div>
         <div class="card-name">${escapeHtml(p.name)}</div>
@@ -195,8 +195,8 @@ function renderCards(products) {
           <div class="card-price">${fmt(p.price_fiscal)}</div>
           ${badge(p.status)}
         </div>
-        <div class="card-stock">Est. Gerencial: <b>${p.snap_stock_mgmt != null ? Number(p.snap_stock_mgmt).toLocaleString('pt-BR') : '—'}</b></div>
-        <div class="card-stock">Est. Real: <b>${p.stock_real != null ? Number(p.stock_real).toLocaleString('pt-BR') : '—'}</b></div>
+        <div class="card-stock">Est. Gerencial: <b>${escapeHtml(p.snap_stock_mgmt != null ? Number(p.snap_stock_mgmt).toLocaleString('pt-BR') : '—')}</b></div>
+        <div class="card-stock">Est. Real: <b>${escapeHtml(p.stock_real != null ? Number(p.stock_real).toLocaleString('pt-BR') : '—')}</b></div>
       </div>`;
     div.addEventListener('click', () => openModal(p.id));
     grid.appendChild(div);
@@ -533,7 +533,7 @@ function updateCardImg(id, url) {
   const imgWrap = card.querySelector('.card-img');
   let img = imgWrap.querySelector('.ci-photo');
   if (!img) {
-    imgWrap.innerHTML = `<img class="ci-photo" src="" alt="" loading="lazy"><div class="card-ref">#${id}</div>`;
+    imgWrap.innerHTML = `<img class="ci-photo" src="" alt="" loading="lazy"><div class="card-ref">#${escapeHtml(id)}</div>`;
     img = imgWrap.querySelector('.ci-photo');
   }
   img.src = url;
