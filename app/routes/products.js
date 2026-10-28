@@ -42,6 +42,8 @@ const IMAGE_SIGNATURES = [
   { ext: '.webp', check: b => b.slice(0, 4).toString('ascii') === 'RIFF' && b.slice(8, 12).toString('ascii') === 'WEBP' },
 ];
 
+const ID_PRODUTO_VALIDO = /^[A-Za-z0-9._-]{1,30}$/;
+
 // Confirma que o arquivo já gravado em disco é de fato uma imagem suportada (não confia na
 // extensão do originalname nem no Content-Type). Renomeia para a extensão real detectada,
 // evitando que um arquivo com conteúdo HTML/script salvo com extensão de imagem forjada
@@ -500,6 +502,8 @@ router.post('/', requireAdmin, async (req, res) => {
     const pool = getDb();
     const { id, name, price_fiscal, price_mgmt, stock_fiscal, stock_mgmt, stock_real, categoria } = req.body;
     if (!id || !name) return res.status(400).json({ error: 'id e name são obrigatórios' });
+    if (typeof id !== 'string' || typeof name !== 'string') return res.status(400).json({ error: 'id e name inválidos' });
+    if (!ID_PRODUTO_VALIDO.test(id)) return res.status(400).json({ error: 'id inválido. Deve conter apenas letras, números, ponto, underline ou hífen, com até 30 caracteres.' });
 
     const { rows: existing } = await pool.query(`SELECT id FROM ${_s}products WHERE id = $1`, [id]);
     if (existing[0]) return res.status(409).json({ error: 'Produto com este ID já existe' });

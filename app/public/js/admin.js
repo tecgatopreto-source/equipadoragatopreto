@@ -398,15 +398,15 @@ async function loadProducts(page) {
         .map(
           (p) => `
         <tr>
-          <td style="font-weight:600;font-size:.72rem">${p.id}</td>
+          <td style="font-weight:600;font-size:.72rem">${escapeHtml(p.id)}</td>
           <td>
             ${escapeHtml(p.name)}
             ${p.is_disabled ? '<span class="badge-disabled" style="margin-left:.4rem">Desativado</span>' : ""}
           </td>
           <td class="col-fiscal">${fmt(p.price_fiscal)}</td>
           <td class="col-mgmt">${fmt(p.price_mgmt ?? p.snap_price_mgmt)}</td>
-          <td class="col-fiscal">${p.stock_fiscal != null ? Number(p.stock_fiscal).toLocaleString("pt-BR") : "—"}</td>
-          <td class="col-mgmt">${p.snap_stock_mgmt != null ? Number(p.snap_stock_mgmt).toLocaleString("pt-BR") : "—"}</td>
+          <td class="col-fiscal">${escapeHtml(p.stock_fiscal != null ? Number(p.stock_fiscal).toLocaleString("pt-BR") : "—")}</td>
+          <td class="col-mgmt">${escapeHtml(p.snap_stock_mgmt != null ? Number(p.snap_stock_mgmt).toLocaleString("pt-BR") : "—")}</td>
           ${diffCell(p.diff_pct, p.stock_fiscal, p.snap_stock_mgmt)}
           <td class="col-real" style="font-weight:700">
             ${p.stock_real != null ? Number(p.stock_real).toLocaleString("pt-BR") : '<span style="color:var(--muted2)">·</span>'}
@@ -874,7 +874,7 @@ async function loadReport() {
         : '<span style="color:var(--muted2)">—</span>';
       return `
     <tr>
-      <td style="font-weight:600;font-size:.72rem">${r.id}</td>
+      <td style="font-weight:600;font-size:.72rem">${escapeHtml(r.id)}</td>
       <td>${escapeHtml(r.name)}</td>
       <td style="font-size:.7rem">${catBadge}</td>
       <td>${cellDiff(fiscalChanged, r.stock_fiscal, r.prev_stock_fiscal)}</td>
@@ -882,8 +882,8 @@ async function loadReport() {
       <td style="border-left:2px solid var(--accent);font-weight:700">
         ${cellDiff(realChanged, r.stock_real, r.prev_stock_real)}
       </td>
-      <td class="date-cell">📅 ${r.data}</td>
-      <td class="time-cell">🕐 ${r.hora}</td>
+      <td class="date-cell">📅 ${escapeHtml(r.data)}</td>
+      <td class="time-cell">🕐 ${escapeHtml(r.hora)}</td>
     </tr>
   `;
     })
@@ -1071,12 +1071,12 @@ async function loadDeactivate() {
         const hasEllipsis = r.name_full && r.name_full.length > 20;
         return `
       <tr>
-        <td style="font-weight:600;font-size:.72rem">${r.id}</td>
+        <td style="font-weight:600;font-size:.72rem">${escapeHtml(r.id)}</td>
         <td title="${escapeHtml(r.name_full)}" style="font-size:.8rem;white-space:nowrap">${escapeHtml(r.name_abbr)}${hasEllipsis ? "…" : ""}</td>
         <td>${fmtN(r.stock_fiscal)}</td>
         <td>${fmtN(r.stock_mgmt)}</td>
         <td style="border-left:2px solid var(--accent);font-weight:700">${fmtN(r.stock_real)}</td>
-        <td class="date-cell">📅 ${r.data}</td>
+        <td class="date-cell">📅 ${escapeHtml(r.data)}</td>
         <td style="white-space:nowrap">${dactBadges(r)}</td>
         <td>
           <div class="td-actions">
