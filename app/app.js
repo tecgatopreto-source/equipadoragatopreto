@@ -102,7 +102,10 @@ app.get('/api/health', async (_, res) => {
     const { rows } = await getDb().query(`SELECT COUNT(*) FROM "${DB_SCHEMA}".products`);
     res.json({ ok: true, products: rows[0].count });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    // Rota pública: a mensagem do pg cita usuário, host e schema do banco. O detalhe
+    // fica no pm2 logs; o 500 continua, porque o deploy (curl -f) depende dele (achado B5).
+    console.error('[health] Banco não respondeu:', err);
+    res.status(500).json({ ok: false });
   }
 });
 
