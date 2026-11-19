@@ -241,6 +241,8 @@ router.get('/', async (req, res) => {
 
   if (capota_type === 'FF') conditions.push(`p.name ~ 'L?FF ?[0-9]+'`);
   else if (capota_type === 'P') conditions.push(`p.name ~ '[. ]P[0-9]+'`);
+  // Palavra inteira: "CAPOTA FIAT TITANO" não é Titanium.
+  else if (capota_type === 'TI') conditions.push(`p.name ~* '\\mTITANIUM\\M'`);
 
   const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
 
